@@ -20,6 +20,14 @@ exports_files(["LICENSE"])
 package(default_visibility = ["//visibility:public"])
 
 cc_library(
+    name = "pistache",
+    visibility = ["//visibility:public"],
+    deps = [
+            "@linux_pistache//:pistache",
+        ],
+)
+
+cc_library(
     name = "opencv",
     visibility = ["//visibility:public"],
     deps = select({

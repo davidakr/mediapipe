@@ -1,6 +1,6 @@
 workspace(name = "mediapipe")
 
-load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive", "http_file")
 
 skylib_version = "0.8.0"
 http_archive(
@@ -152,6 +152,31 @@ new_local_repository(
     name = "macos_ffmpeg",
     build_file = "@//third_party:ffmpeg_macos.BUILD",
     path = "/usr",
+)
+
+# pistache needs to be installed 
+
+new_local_repository(
+    name = "linux_pistache",
+    build_file = "@//third_party:pistache_linux.BUILD",
+    path = "/usr",
+)
+
+# remote base64 library
+
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+new_git_repository(
+    name = "cpp-base64",
+    remote = "https://github.com/ReneNyffenegger/cpp-base64.git",
+    branch = "master",          
+    build_file_content="""
+cc_library(
+    name = "cpp-base64",
+    srcs = ["base64.cpp"],
+    hdrs = ["base64.h"],
+    visibility = ["//visibility:public"],
+)
+"""
 )
 
 http_archive(
