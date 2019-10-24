@@ -53,13 +53,65 @@ DEFINE_string(
     calculator_graph_config_file, "",
     "Name of file containing text format CalculatorGraphConfig proto.");
 
-cv::Mat image = cv::imread("mediapipe/examples/desktop/data/rsz_test_img.jpg", CV_LOAD_IMAGE_COLOR);
+//cv::Mat image = cv::imread("mediapipe/examples/desktop/data/rsz_test_img.jpg", CV_LOAD_IMAGE_COLOR);
 bool run_graph = true;
 bool grab_frames = false;
-bool test_variable = false;
 bool process_image = false;
 mutex mtx_queue;
 queue<cv::Mat> image_queue;
+
+string boolToString(bool b)
+{
+  return b ? "true" : "false";
+}
+
+cv::Mat base64ToImg(string base64)
+{
+  string dec_jpg = base64_decode(base64);
+  std::vector<uchar> data(dec_jpg.begin(), dec_jpg.end());
+  cv::Mat img = cv::imdecode(data, cv::IMREAD_UNCHANGED);
+  return img;
+}
+
+string imgToBase64(cv::Mat img)
+{
+  std::vector<uchar> buf;
+  cv::imencode(".jpg", img, buf);
+  auto *enc_msg = reinterpret_cast<unsigned char *>(buf.data());
+  std::string encoded = base64_encode(enc_msg, buf.size());
+  return encoded;
+}
+
+string getValueFromBody(string body, string value)
+{
+  body = "&" + body;
+  auto position = body.find("&" + value);
+  auto position_cut = body.find("&", position + 1);
+  auto length = position_cut - position - value.length() - 2;
+  return body.substr(position + value.length() + 2, length);
+}
+
+void sendImage(cv::Mat img)
+{
+  Http::Client client;
+  auto opts_client = Http::Client::options()
+                         .threads(1)
+                         .maxConnectionsPerHost(1);
+  client.init(opts_client);
+
+  string page = "http://localhost:5000/";
+  string body = imgToBase64(img);
+  auto resp = client.post(page).body(body).send();
+
+  resp.then([&](Http::Response response) {
+    std::cout << "body " << response.body() << std::endl;
+  },
+            Async::IgnoreException);
+  sleep(1);
+  std::cout << "image processed and send away" << std::endl;
+
+  client.shutdown();
+}
 
 ::mediapipe::Status RunMPPGraph()
 {
@@ -83,9 +135,6 @@ queue<cv::Mat> image_queue;
   mediapipe::GlCalculatorHelper gpu_helper;
   gpu_helper.InitializeForTest(graph.GetGpuResources().get());
 
-  //cv::VideoWriter writer;
-  //cv::namedWindow(kWindowName, cv::WINDOW_NORMAL);
-
   LOG(INFO) << "Start running the calculator graph.";
   ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller poller, graph.AddOutputStreamPoller(kOutputStream));
   MP_RETURN_IF_ERROR(graph.StartRun({}));
@@ -93,27 +142,27 @@ queue<cv::Mat> image_queue;
   LOG(INFO) << "Start grabbing and processing frames.";
   size_t frame_timestamp = 0;
 
-  cv::Mat camera_frame;
-  camera_frame = image;
+  cv::Mat image_frame;
 
-  //if (image.empty()){ return mediapipe::Status::; };
   while (run_graph)
   {
     mtx_queue.lock();
     process_image = !image_queue.empty();
-    
     mtx_queue.unlock();
 
     while (process_image)
     {
-      camera_frame = image_queue.front();
+      mtx_queue.lock();
+      image_frame = image_queue.front();
       image_queue.pop();
+      mtx_queue.unlock();
+
       // Wrap Mat into an ImageFrame.
       auto input_frame = absl::make_unique<mediapipe::ImageFrame>(
-          mediapipe::ImageFormat::SRGB, camera_frame.cols, camera_frame.rows,
+          mediapipe::ImageFormat::SRGB, image_frame.cols, image_frame.rows,
           mediapipe::ImageFrame::kGlDefaultAlignmentBoundary);
       cv::Mat input_frame_mat = mediapipe::formats::MatView(input_frame.get());
-      camera_frame.copyTo(input_frame_mat);
+      image_frame.copyTo(input_frame_mat);
 
       // Prepare and add graph input packet.
       MP_RETURN_IF_ERROR(
@@ -159,7 +208,10 @@ queue<cv::Mat> image_queue;
 
       // Convert back to opencv for display or saving.
       cv::Mat output_frame_mat = mediapipe::formats::MatView(output_frame.get());
-      cv::imwrite("mediapipe/examples/desktop/data/test_img_check.jpg", output_frame_mat);
+      std::cout << "done" << std::endl;
+
+      //sendImage(output_frame_mat);
+      //cv::imwrite("mediapipe/examples/desktop/data/test_img_check.jpg", output_frame_mat);
       //cv::cvtColor(output_frame_mat, output_frame_mat, cv::COLOR_RGB2BGR);
 
       mtx_queue.lock();
@@ -169,48 +221,8 @@ queue<cv::Mat> image_queue;
   }
 
   LOG(INFO) << "Shutting down.";
-  //if (writer.isOpened())
-  //  writer.release();
   MP_RETURN_IF_ERROR(graph.CloseInputStream(kInputStream));
   return graph.WaitUntilDone();
-}
-
-string prepareString(bool to_send)
-{
-  if (to_send)
-  {
-    return "true";
-  }
-  else
-  {
-    return "false";
-  }
-}
-
-cv::Mat base64ToImg(string base64)
-{
-  string dec_jpg = base64_decode(base64);
-  std::vector<uchar> data(dec_jpg.begin(), dec_jpg.end());
-  cv::Mat img = cv::imdecode(data, cv::IMREAD_UNCHANGED);
-  return img;
-}
-
-string imgToBase64(cv::Mat img)
-{
-  std::vector<uchar> buf;
-  cv::imencode(".jpg", img, buf);
-  auto *enc_msg = reinterpret_cast<unsigned char *>(buf.data());
-  std::string encoded = base64_encode(enc_msg, buf.size());
-  return encoded;
-}
-
-string getValueFromBody(string body, string value)
-{
-  body = "&" + body;
-  auto position = body.find("&" + value);
-  auto position_cut = body.find("&", position + 1);
-  auto length = position_cut - position - value.length() - 2;
-  return body.substr(position + value.length() + 2, length);
 }
 
 class InputHandler : public Http::Handler
@@ -224,38 +236,32 @@ class InputHandler : public Http::Handler
       string body_str = request.body();
       string image_str = getValueFromBody(body_str, "image");
       string timestamp_str = getValueFromBody(body_str, "timestamp");
-
-      cv::Mat image_mat = base64ToImg(image_str);
-      image_queue.push(image_mat);
-      writer.send(Http::Code::Ok);
+      if (image_str.empty())
+      {
+        writer.send(Http::Code::Failed_Dependency);
+      }
+      else
+      {
+        cv::Mat image_mat = base64ToImg(image_str);
+        image_queue.push(image_mat);
+        std::cout << "image received" << std::endl;
+        writer.send(Http::Code::Ok);
+      }
     }
     else if (request.resource() == "/status")
     {
       char queue_size[256];
       snprintf(queue_size, sizeof queue_size, "%zu", image_queue.size());
-      std::string to_send = "queue empty:" + prepareString(image_queue.empty());
+      std::string to_send = "queue empty:" + boolToString(image_queue.empty());
       to_send = to_send + " queue size:" + queue_size;
-      to_send = to_send + " run_graph:" + prepareString(run_graph);
-      to_send = to_send + " grab_frames:" + prepareString(grab_frames);
-      to_send = to_send + " process_image:" + prepareString(process_image);
+      to_send = to_send + " run_graph:" + boolToString(run_graph);
+      to_send = to_send + " grab_frames:" + boolToString(grab_frames);
+      to_send = to_send + " process_image:" + boolToString(process_image);
       writer.send(Http::Code::Ok, to_send);
-    } else if(request.resource() == "/getbase64"){
-      string base64 = imgToBase64(image);
-      writer.send(Http::Code::Ok, base64);
     }
     mtx_queue.unlock();
   }
 };
-
-bool sendImage()
-{
-  Http::Client client;
-
-  auto opts = Http::Client::options()
-                  .threads(1)
-                  .maxConnectionsPerHost(8);
-  client.init(opts);
-}
 
 int main(int argc, char **argv)
 {
@@ -264,15 +270,16 @@ int main(int argc, char **argv)
 
   std::thread threadGraph(RunMPPGraph);
 
-  Port port(9090);
+  Port port(9080);
   Address addr(Ipv4::any(), port);
   auto server = std::make_shared<Http::Endpoint>(addr);
-  auto opts = Http::Endpoint::options()
-                  .maxRequestSize(2538400);
+  auto opts_server = Http::Endpoint::options()
+                         .maxRequestSize(2538400);
 
-  server->init(opts);
+  server->init(opts_server);
   server->setHandler(Http::make_handler<InputHandler>());
   server->serve();
+
   threadGraph.join();
   return 0;
 }
