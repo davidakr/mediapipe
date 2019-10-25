@@ -153,6 +153,8 @@ string imgToBase64(cv::Mat img)
 
       // Get the graph result packet, or stop if that fails.
       mediapipe::Packet packet;
+      cout << "graph started" << endl;
+
       if (!poller.Next(&packet))
       {
         mtx.lock();
@@ -161,12 +163,12 @@ string imgToBase64(cv::Mat img)
         mtx.unlock();
         break;
       }
-
       std::unique_ptr<mediapipe::ImageFrame> output_frame;
-
+      cout << packet.DebugTypeName() << endl;
       // Convert GpuBuffer to ImageFrame.
       MP_RETURN_IF_ERROR(gpu_helper.RunInGlContext(
           [&packet, &output_frame, &gpu_helper]() -> ::mediapipe::Status {
+            cout << packet.RegisteredTypeName() << endl;
             auto &gpu_frame = packet.Get<mediapipe::GpuBuffer>();
             auto texture = gpu_helper.CreateSourceTexture(gpu_frame);
             output_frame = absl::make_unique<mediapipe::ImageFrame>(
@@ -221,7 +223,7 @@ class InputHandler : public Http::Handler
       cv::Mat buffer_image;
       buffer_image = base64ToImg(body_str);
 
-      if (!(new_image.cols > 0 && new_image.rows > 0))
+      if (!(buffer_image.cols > 0 && buffer_image.rows > 0))
       {
         writer.send(Http::Code::No_Content, "no image");
         return;
@@ -249,6 +251,7 @@ int main(int argc, char **argv)
 {
   google::InitGoogleLogging(argv[0]);
   gflags::ParseCommandLineFlags(&argc, &argv, true);
+  
   std::thread threadGraph(RunMPPGraph);
 
   Port port(argv[1]);
