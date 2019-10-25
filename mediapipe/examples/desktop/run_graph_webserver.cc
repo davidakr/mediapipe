@@ -55,10 +55,12 @@ DEFINE_string(
 
 //cv::Mat image = cv::imread("mediapipe/examples/desktop/data/rsz_test_img.jpg", CV_LOAD_IMAGE_COLOR);
 bool run_graph = true;
-bool grab_frames = false;
-bool process_image = false;
-mutex mtx_queue;
-queue<cv::Mat> image_queue;
+bool run_client = true;
+mutex mtx_queue_input;
+mutex mtx_queue_output;
+
+queue<cv::Mat> image_queue_input;
+queue<cv::Mat> image_queue_output;
 
 string boolToString(bool b)
 {
@@ -91,26 +93,53 @@ string getValueFromBody(string body, string value)
   return body.substr(position + value.length() + 2, length);
 }
 
-void sendImage(cv::Mat img)
+void RunClient()
 {
-  Http::Client client;
+  int connections = 8;
+  int current_connections = 1;
+
   auto opts_client = Http::Client::options()
-                         .threads(1)
-                         .maxConnectionsPerHost(1);
-  client.init(opts_client);
+                         .threads(1);
 
   string page = "http://localhost:5000/";
-  string body = imgToBase64(img);
-  auto resp = client.post(page).body(body).send();
+  bool process_image = false;
+  Http::Client client;
+  client.init(opts_client);
 
-  resp.then([&](Http::Response response) {
-    std::cout << "body " << response.body() << std::endl;
-  },
-            Async::IgnoreException);
-  sleep(1);
-  std::cout << "image processed and send away" << std::endl;
+  while (run_client)
+  {
+    mtx_queue_output.lock();
+    process_image = !image_queue_output.empty();
+    mtx_queue_output.unlock();
 
-  client.shutdown();
+    while (process_image)
+    {
+
+      mtx_queue_output.lock();
+      cv::Mat img = image_queue_output.front();
+      image_queue_output.pop();
+      mtx_queue_output.unlock();
+
+      string body = imgToBase64(img);
+      auto resp = client.post(page).body(body).send();
+
+      std::cout << "image send" << std::endl;
+      current_connections++;
+
+      if (current_connections > connections)
+      {
+        client.shutdown();
+        
+        client.init(opts_client);
+        current_connections = 1;
+        std::cout << "reset" << std::endl;
+      }
+
+      mtx_queue_output.lock();
+      process_image = !image_queue_output.empty();
+      mtx_queue_output.unlock();
+    }
+  }
 }
 
 ::mediapipe::Status RunMPPGraph()
@@ -143,19 +172,20 @@ void sendImage(cv::Mat img)
   size_t frame_timestamp = 0;
 
   cv::Mat image_frame;
+  bool process_image = false;
 
   while (run_graph)
   {
-    mtx_queue.lock();
-    process_image = !image_queue.empty();
-    mtx_queue.unlock();
+    mtx_queue_input.lock();
+    process_image = !image_queue_input.empty();
+    mtx_queue_input.unlock();
 
     while (process_image)
     {
-      mtx_queue.lock();
-      image_frame = image_queue.front();
-      image_queue.pop();
-      mtx_queue.unlock();
+      mtx_queue_input.lock();
+      image_frame = image_queue_input.front();
+      image_queue_input.pop();
+      mtx_queue_input.unlock();
 
       // Wrap Mat into an ImageFrame.
       auto input_frame = absl::make_unique<mediapipe::ImageFrame>(
@@ -208,15 +238,18 @@ void sendImage(cv::Mat img)
 
       // Convert back to opencv for display or saving.
       cv::Mat output_frame_mat = mediapipe::formats::MatView(output_frame.get());
-      std::cout << "done" << std::endl;
+      std::cout << "image processed" << std::endl;
 
+      mtx_queue_output.lock();
+      image_queue_output.push(output_frame_mat);
+      mtx_queue_output.unlock();
       //sendImage(output_frame_mat);
       //cv::imwrite("mediapipe/examples/desktop/data/test_img_check.jpg", output_frame_mat);
       //cv::cvtColor(output_frame_mat, output_frame_mat, cv::COLOR_RGB2BGR);
 
-      mtx_queue.lock();
-      process_image = !image_queue.empty();
-      mtx_queue.unlock();
+      mtx_queue_input.lock();
+      process_image = !image_queue_input.empty();
+      mtx_queue_input.unlock();
     }
   }
 
@@ -230,7 +263,7 @@ class InputHandler : public Http::Handler
   HTTP_PROTOTYPE(InputHandler)
   void onRequest(const Http::Request &request, Http::ResponseWriter writer) override
   {
-    mtx_queue.lock();
+    mtx_queue_input.lock();
     if (request.resource() == "/push" && request.method() == Http::Method::Post)
     {
       string body_str = request.body();
@@ -243,7 +276,7 @@ class InputHandler : public Http::Handler
       else
       {
         cv::Mat image_mat = base64ToImg(image_str);
-        image_queue.push(image_mat);
+        image_queue_input.push(image_mat);
         std::cout << "image received" << std::endl;
         writer.send(Http::Code::Ok);
       }
@@ -251,15 +284,14 @@ class InputHandler : public Http::Handler
     else if (request.resource() == "/status")
     {
       char queue_size[256];
-      snprintf(queue_size, sizeof queue_size, "%zu", image_queue.size());
-      std::string to_send = "queue empty:" + boolToString(image_queue.empty());
+      snprintf(queue_size, sizeof queue_size, "%zu", image_queue_input.size());
+      std::string to_send = "queue empty:" + boolToString(image_queue_input.empty());
       to_send = to_send + " queue size:" + queue_size;
       to_send = to_send + " run_graph:" + boolToString(run_graph);
-      to_send = to_send + " grab_frames:" + boolToString(grab_frames);
-      to_send = to_send + " process_image:" + boolToString(process_image);
+      to_send = to_send + " run_client:" + boolToString(run_client);
       writer.send(Http::Code::Ok, to_send);
     }
-    mtx_queue.unlock();
+    mtx_queue_input.unlock();
   }
 };
 
@@ -268,7 +300,8 @@ int main(int argc, char **argv)
   google::InitGoogleLogging(argv[0]);
   gflags::ParseCommandLineFlags(&argc, &argv, true);
 
-  std::thread threadGraph(RunMPPGraph);
+  std::thread threadClient(RunMPPGraph);
+  std::thread threadGraph(RunClient);
 
   Port port(9080);
   Address addr(Ipv4::any(), port);
@@ -281,5 +314,7 @@ int main(int argc, char **argv)
   server->serve();
 
   threadGraph.join();
+  threadClient.join();
+
   return 0;
 }
