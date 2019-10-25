@@ -37,11 +37,9 @@
 
 #include <pthread.h>
 #include <chrono>
-#include <queue>
 #include <mutex>
 #include <stdint.h>
 #include <stdlib.h>
-#include <condition_variable>
 
 constexpr char kInputStream[] = "input_video";
 constexpr char kOutputStream[] = "output_video";
@@ -54,7 +52,6 @@ DEFINE_string(
     calculator_graph_config_file, "",
     "Name of file containing text format CalculatorGraphConfig proto.");
 
-//cv::Mat image = cv::imread("mediapipe/examples/desktop/data/rsz_test_img.jpg", CV_LOAD_IMAGE_COLOR);
 bool run_graph = true;
 bool process_image = false;
 bool new_data = false;
@@ -85,15 +82,6 @@ string imgToBase64(cv::Mat img)
   auto *enc_msg = reinterpret_cast<unsigned char *>(buf.data());
   std::string encoded = base64_encode(enc_msg, buf.size());
   return encoded;
-}
-
-string getValueFromBody(string body, string value)
-{
-  body = "&" + body;
-  auto position = body.find("&" + value);
-  auto position_cut = body.find("&", position + 1);
-  auto length = position_cut - position - value.length() - 2;
-  return body.substr(position + value.length() + 2, length);
 }
 
 ::mediapipe::Status RunMPPGraph()
@@ -141,12 +129,12 @@ string getValueFromBody(string body, string value)
     while (process_image)
     {
       // Wrap Mat into an ImageFrame.
+
       auto input_frame = absl::make_unique<mediapipe::ImageFrame>(
           mediapipe::ImageFormat::SRGB, image_frame.cols, image_frame.rows,
           mediapipe::ImageFrame::kGlDefaultAlignmentBoundary);
       cv::Mat input_frame_mat = mediapipe::formats::MatView(input_frame.get());
       image_frame.copyTo(input_frame_mat);
-
       // Prepare and add graph input packet.
       MP_RETURN_IF_ERROR(
           gpu_helper.RunInGlContext([&input_frame, &frame_timestamp, &graph,
@@ -225,10 +213,25 @@ class InputHandler : public Http::Handler
     {
       string body_str = request.body();
 
+      if (body_str.empty())
+      {
+        writer.send(Http::Code::No_Content, "body empty");
+        return;
+      }
+      cv::Mat buffer_image;
+      buffer_image = base64ToImg(body_str);
+
+      if (!(new_image.cols > 0 && new_image.rows > 0))
+      {
+        writer.send(Http::Code::No_Content, "no image");
+        return;
+      }
+
       mtx.lock();
+      new_image = buffer_image;
       new_data = true;
-      new_image = base64ToImg(body_str);
       mtx.unlock();
+
       bool graph_is_running = true;
 
       while (graph_is_running)
@@ -237,10 +240,6 @@ class InputHandler : public Http::Handler
         graph_is_running = process_image;
         mtx.unlock();
       }
-      writer.send(Http::Code::Ok);
-    }
-    else if (request.resource() == "/status")
-    {
       writer.send(Http::Code::Ok);
     }
   }
@@ -252,7 +251,7 @@ int main(int argc, char **argv)
   gflags::ParseCommandLineFlags(&argc, &argv, true);
   std::thread threadGraph(RunMPPGraph);
 
-  Port port(9090);
+  Port port(argv[1]);
   Address addr(Ipv4::any(), port);
   auto server = std::make_shared<Http::Endpoint>(addr);
   auto opts_server = Http::Endpoint::options()
