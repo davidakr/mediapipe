@@ -91,6 +91,8 @@ cc_library(
         "//mediapipe/gpu:gpu_buffer",
         "//mediapipe/gpu:gpu_shared_data_internal",
         "//third_party:pistache",
-        "@cpp-base64//:cpp-base64",     
+        "@cpp-base64//:cpp-base64",
+        "//mediapipe/calculators/core:concatenate_vector_calculator",
+        "//mediapipe/framework/formats:landmark_cc_proto"     
     ],
 )

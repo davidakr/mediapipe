@@ -16,6 +16,7 @@
 // This example requires a linux computer and a GPU with EGL support drivers.
 
 #include "mediapipe/framework/calculator_framework.h"
+#include "mediapipe/framework/formats/landmark.pb.h"
 #include "mediapipe/framework/formats/image_frame.h"
 #include "mediapipe/framework/formats/image_frame_opencv.h"
 #include "mediapipe/framework/port/commandlineflags.h"
@@ -28,6 +29,7 @@
 #include "mediapipe/gpu/gl_calculator_helper.h"
 #include "mediapipe/gpu/gpu_buffer.h"
 #include "mediapipe/gpu/gpu_shared_data_internal.h"
+#include "mediapipe/calculators/core/concatenate_vector_calculator.h"
 
 #include <pistache/endpoint.h>
 #include <pistache/net.h>
@@ -40,9 +42,15 @@
 #include <mutex>
 #include <stdint.h>
 #include <stdlib.h>
+#include <vector>
 
 constexpr char kInputStream[] = "input_video";
-constexpr char kOutputStream[] = "output_video";
+constexpr char videoOutputStream[] = "output_video";
+constexpr char landmarkOutputStream[] = "hand_landmarks";
+constexpr char rectOutputStream[] = "hand_rect";
+constexpr char palmOutputStream[] = "palm_detections";
+constexpr char presenceOutputStream[] = "presence";
+
 constexpr char kWindowName[] = "MediaPipe";
 
 using namespace Pistache;
@@ -107,7 +115,8 @@ string imgToBase64(cv::Mat img)
   gpu_helper.InitializeForTest(graph.GetGpuResources().get());
 
   LOG(INFO) << "Start running the calculator graph.";
-  ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller poller, graph.AddOutputStreamPoller(kOutputStream));
+  ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerVideo, graph.AddOutputStreamPoller(videoOutputStream));
+  ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerLandmark, graph.AddOutputStreamPoller(landmarkOutputStream));
   MP_RETURN_IF_ERROR(graph.StartRun({}));
 
   LOG(INFO) << "Start grabbing and processing frames.";
@@ -120,6 +129,7 @@ string imgToBase64(cv::Mat img)
     mtx.lock();
     if (new_data)
     {
+      LOG(INFO) << "Block request.";
       image_frame = new_image;
       process_image = true;
       new_data = false;
@@ -129,13 +139,13 @@ string imgToBase64(cv::Mat img)
     while (process_image)
     {
       // Wrap Mat into an ImageFrame.
-
       auto input_frame = absl::make_unique<mediapipe::ImageFrame>(
           mediapipe::ImageFormat::SRGB, image_frame.cols, image_frame.rows,
           mediapipe::ImageFrame::kGlDefaultAlignmentBoundary);
       cv::Mat input_frame_mat = mediapipe::formats::MatView(input_frame.get());
       image_frame.copyTo(input_frame_mat);
       // Prepare and add graph input packet.
+      cout << "graph prepared" << endl;
       MP_RETURN_IF_ERROR(
           gpu_helper.RunInGlContext([&input_frame, &frame_timestamp, &graph,
                                      &gpu_helper]() -> ::mediapipe::Status {
@@ -145,6 +155,7 @@ string imgToBase64(cv::Mat img)
             glFlush();
             texture.Release();
             // Send GPU image packet into the graph.
+            cout << "send in graph" << endl;
             MP_RETURN_IF_ERROR(graph.AddPacketToInputStream(
                 kInputStream, mediapipe::Adopt(gpu_frame.release())
                                   .At(mediapipe::Timestamp(frame_timestamp++))));
@@ -153,9 +164,8 @@ string imgToBase64(cv::Mat img)
 
       // Get the graph result packet, or stop if that fails.
       mediapipe::Packet packet;
-      cout << "graph started" << endl;
 
-      if (!poller.Next(&packet))
+      if (!pollerVideo.Next(&packet))
       {
         mtx.lock();
         process_done = false;
@@ -163,12 +173,13 @@ string imgToBase64(cv::Mat img)
         mtx.unlock();
         break;
       }
+
       std::unique_ptr<mediapipe::ImageFrame> output_frame;
-      cout << packet.DebugTypeName() << endl;
+      //cout << packet.GetProtoMessageLite().InitializationErrorString() << endl;
+
       // Convert GpuBuffer to ImageFrame.
       MP_RETURN_IF_ERROR(gpu_helper.RunInGlContext(
           [&packet, &output_frame, &gpu_helper]() -> ::mediapipe::Status {
-            cout << packet.RegisteredTypeName() << endl;
             auto &gpu_frame = packet.Get<mediapipe::GpuBuffer>();
             auto texture = gpu_helper.CreateSourceTexture(gpu_frame);
             output_frame = absl::make_unique<mediapipe::ImageFrame>(
@@ -190,7 +201,25 @@ string imgToBase64(cv::Mat img)
 
       //cv::cvtColor(output_frame_mat, output_frame_mat, cv::COLOR_RGB2BGR);
 
+      // Process landmarks
+      if (!pollerLandmark.Next(&packet))
+      {
+        mtx.lock();
+        process_done = false;
+        process_image = false;
+        mtx.unlock();
+        break;
+      }
+      LOG(INFO) << "Landmark received.";
+      auto landmark_frame = packet.Get<std::vector<mediapipe::NormalizedLandmark, std::allocator<mediapipe::NormalizedLandmark>>>();
+      for (auto i = landmark_frame.begin(); i != landmark_frame.end(); ++i)
+      {
+        mediapipe::NormalizedLandmark landmark = *i;
+        LOG(INFO) << "x position: " << landmark.x() << " - y position: " << landmark.y();
+      }
+
       mtx.lock();
+      LOG(INFO) << "Release request.";
       process_image = false;
       process_done = true;
       mtx.unlock();
@@ -251,7 +280,7 @@ int main(int argc, char **argv)
 {
   google::InitGoogleLogging(argv[0]);
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  
+
   std::thread threadGraph(RunMPPGraph);
 
   Port port(argv[1]);
@@ -266,5 +295,6 @@ int main(int argc, char **argv)
 
   threadGraph.join();
 
+  //cout << RunMPPGraph() << endl;
   return 0;
 }
