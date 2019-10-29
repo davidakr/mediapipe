@@ -179,6 +179,23 @@ cc_library(
 """
 )
 
+# remote json library
+
+new_git_repository(
+    name = "cpp-json",
+    remote = "https://github.com/Tencent/rapidjson.git",
+    branch = "master",          
+    build_file_content="""
+cc_library(
+    name = "cpp-json",
+    hdrs = glob(["include/rapidjson/*.h*"]),
+    srcs = glob(["include/rapidjson/internal/*.h*"]),
+    includes = ["include/rapidjson"],
+    visibility = ["//visibility:public"],
+)
+"""
+)
+
 http_archive(
     name = "android_opencv",
     sha256 = "056b849842e4fa8751d09edbb64530cfa7a63c84ccd232d0ace330e27ba55d0b",

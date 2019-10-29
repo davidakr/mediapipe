@@ -48,3 +48,11 @@ cc_binary(
         "//mediapipe/graphs/hand_tracking:mobile_calculators",
     ],
 )
+
+cc_binary(
+    name = "hand_tracking_gpu_webserver_extended",
+    deps = [
+        "//mediapipe/examples/desktop:simple_run_graph_main",
+        "//mediapipe/graphs/hand_tracking:mobile_calculators",
+    ],
+)

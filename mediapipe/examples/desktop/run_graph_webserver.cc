@@ -35,7 +35,10 @@
 #include <pistache/net.h>
 #include <pistache/http.h>
 #include <pistache/client.h>
+
 #include "base64.h"
+#include "include/rapidjson/writer.h"
+#include "include/rapidjson/stringbuffer.h"
 
 #include <pthread.h>
 #include <chrono>
@@ -43,18 +46,20 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <vector>
+#include <iostream>
 
 constexpr char kInputStream[] = "input_video";
 constexpr char videoOutputStream[] = "output_video";
 constexpr char landmarkOutputStream[] = "hand_landmarks";
 constexpr char rectOutputStream[] = "hand_rect";
 constexpr char palmOutputStream[] = "palm_detections";
-constexpr char presenceOutputStream[] = "presence";
+constexpr char presenceOutputStream[] = "hand_presence";
 
 constexpr char kWindowName[] = "MediaPipe";
 
 using namespace Pistache;
 using namespace std;
+using namespace rapidjson;
 
 DEFINE_string(
     calculator_graph_config_file, "",
@@ -64,9 +69,11 @@ bool run_graph = true;
 bool process_image = false;
 bool new_data = false;
 bool process_done = false;
+string json;
 
 cv::Mat new_image;
 std::mutex mtx;
+std::mutex mtx_json;
 
 queue<cv::Mat> image_queue_input;
 
@@ -90,6 +97,14 @@ string imgToBase64(cv::Mat img)
   auto *enc_msg = reinterpret_cast<unsigned char *>(buf.data());
   std::string encoded = base64_encode(enc_msg, buf.size());
   return encoded;
+}
+void graphUnsucessful()
+{
+  mtx.lock();
+  process_done = false;
+  process_image = false;
+  mtx.unlock();
+  LOG(INFO) << "Graph failed";
 }
 
 ::mediapipe::Status RunMPPGraph()
@@ -115,8 +130,10 @@ string imgToBase64(cv::Mat img)
   gpu_helper.InitializeForTest(graph.GetGpuResources().get());
 
   LOG(INFO) << "Start running the calculator graph.";
+  ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerPresence, graph.AddOutputStreamPoller(presenceOutputStream));
   ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerVideo, graph.AddOutputStreamPoller(videoOutputStream));
   ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerLandmark, graph.AddOutputStreamPoller(landmarkOutputStream));
+
   MP_RETURN_IF_ERROR(graph.StartRun({}));
 
   LOG(INFO) << "Start grabbing and processing frames.";
@@ -145,7 +162,6 @@ string imgToBase64(cv::Mat img)
       cv::Mat input_frame_mat = mediapipe::formats::MatView(input_frame.get());
       image_frame.copyTo(input_frame_mat);
       // Prepare and add graph input packet.
-      cout << "graph prepared" << endl;
       MP_RETURN_IF_ERROR(
           gpu_helper.RunInGlContext([&input_frame, &frame_timestamp, &graph,
                                      &gpu_helper]() -> ::mediapipe::Status {
@@ -155,27 +171,27 @@ string imgToBase64(cv::Mat img)
             glFlush();
             texture.Release();
             // Send GPU image packet into the graph.
-            cout << "send in graph" << endl;
             MP_RETURN_IF_ERROR(graph.AddPacketToInputStream(
                 kInputStream, mediapipe::Adopt(gpu_frame.release())
                                   .At(mediapipe::Timestamp(frame_timestamp++))));
             return ::mediapipe::OkStatus();
           }));
 
+      //prepare JSON
+      StringBuffer s;
+      Writer<StringBuffer> writer(s);
+      writer.StartObject();
+
       // Get the graph result packet, or stop if that fails.
       mediapipe::Packet packet;
 
       if (!pollerVideo.Next(&packet))
       {
-        mtx.lock();
-        process_done = false;
-        process_image = false;
-        mtx.unlock();
+        graphUnsucessful();
         break;
       }
 
       std::unique_ptr<mediapipe::ImageFrame> output_frame;
-      //cout << packet.GetProtoMessageLite().InitializationErrorString() << endl;
 
       // Convert GpuBuffer to ImageFrame.
       MP_RETURN_IF_ERROR(gpu_helper.RunInGlContext(
@@ -198,35 +214,56 @@ string imgToBase64(cv::Mat img)
 
       // Convert back to opencv for display or saving.
       cv::Mat output_frame_mat = mediapipe::formats::MatView(output_frame.get());
-
+      writer.Key("image"); // output a key,
+      string base64img = imgToBase64(output_frame_mat);
+      char *cstr = new char[base64img.length() + 1];
+      strcpy(cstr, base64img.c_str());
+      writer.String(cstr);
       //cv::cvtColor(output_frame_mat, output_frame_mat, cv::COLOR_RGB2BGR);
 
       // Process landmarks
       if (!pollerLandmark.Next(&packet))
       {
-        mtx.lock();
-        process_done = false;
-        process_image = false;
-        mtx.unlock();
+        graphUnsucessful();
         break;
       }
       LOG(INFO) << "Landmark received.";
       auto landmark_frame = packet.Get<std::vector<mediapipe::NormalizedLandmark, std::allocator<mediapipe::NormalizedLandmark>>>();
+      writer.Key("landmarks");
+      writer.StartArray();
       for (auto i = landmark_frame.begin(); i != landmark_frame.end(); ++i)
       {
+        writer.StartArray();
         mediapipe::NormalizedLandmark landmark = *i;
-        LOG(INFO) << "x position: " << landmark.x() << " - y position: " << landmark.y();
+        writer.Uint(landmark.x());
+        writer.Uint(landmark.y());
+        writer.EndArray();
       }
+      writer.EndArray();
+
+      //Process Hand Presence
+      if (!pollerPresence.Next(&packet))
+      {
+        graphUnsucessful();
+        break;
+      }
+      LOG(INFO) << "Presence received.";
+      auto presence_frame = packet.Get<bool>();
+      writer.Key("present");
+      writer.Bool(presence_frame);
+
+      writer.EndObject();
 
       mtx.lock();
       LOG(INFO) << "Release request.";
+      json = s.GetString();
       process_image = false;
       process_done = true;
       mtx.unlock();
 
-      cv::namedWindow(kWindowName, /*flags=WINDOW_AUTOSIZE*/ 1);
+      /*cv::namedWindow(kWindowName, 1);
       cv::imshow(kWindowName, output_frame_mat);
-      cv::waitKey(5);
+      cv::waitKey(5);*/
     }
   }
 
@@ -242,8 +279,10 @@ class InputHandler : public Http::Handler
   {
     if (request.resource() == "/" && request.method() == Http::Method::Post)
     {
+      LOG(INFO) << "---------------------------------------New Request---------------------------------------";
       string body_str = request.body();
 
+      auto start = std::chrono::system_clock::now();
       if (body_str.empty())
       {
         writer.send(Http::Code::No_Content, "body empty");
@@ -257,21 +296,34 @@ class InputHandler : public Http::Handler
         writer.send(Http::Code::No_Content, "no image");
         return;
       }
+      auto end = std::chrono::system_clock::now();
+      std::chrono::duration<double> elapsed_seconds_datacheck = end - start;
 
+      start = std::chrono::system_clock::now();
       mtx.lock();
       new_image = buffer_image;
       new_data = true;
       mtx.unlock();
 
       bool graph_is_running = true;
+      string jsonResponse;
 
       while (graph_is_running)
       {
         mtx.lock();
         graph_is_running = process_image;
+        if (!graph_is_running)
+        {
+          jsonResponse = json;
+        }
         mtx.unlock();
       }
-      writer.send(Http::Code::Ok);
+      end = std::chrono::system_clock::now();
+      std::chrono::duration<double> elapsed_seconds_graph = end - start;
+      LOG(INFO) << "Datacheck:" << elapsed_seconds_datacheck.count() << " seconds";
+      LOG(INFO) << "Running graph: " << elapsed_seconds_graph.count() << " seconds";
+
+      writer.send(Http::Code::Ok, jsonResponse);
     }
   }
 };

@@ -93,6 +93,7 @@ cc_library(
         "//third_party:pistache",
         "@cpp-base64//:cpp-base64",
         "//mediapipe/calculators/core:concatenate_vector_calculator",
-        "//mediapipe/framework/formats:landmark_cc_proto"     
+        "//mediapipe/framework/formats:landmark_cc_proto",
+        "@cpp-json//:cpp-json",     
     ],
 )
