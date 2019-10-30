@@ -11,9 +11,12 @@ A microservice based on the hand_tracking_gpu example from mediapipe. Reaches up
 
 ## How to use it:
 
-* send an base64 encoded image in your request
-* the response contains
-..* present (boolean): if a hand is detected
-..* landmarks (int x, int y): landmarks of the hand, if none is detected all are 0
-..* base64 encoded image (string): the image containing the landmarks and palm detection if available
+### Request
+base64 encoded image in the request body
+
+### Response
+returns a json with following attributes:
+* present (boolean): if a hand is detected
+* landmarks (int x, int y): landmarks of the hand, if none is detected all are 0
+* base64 encoded image (string): the image containing the landmarks and palm detection if available
 
