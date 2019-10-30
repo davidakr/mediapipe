@@ -14,7 +14,6 @@
 
 FROM ubuntu:18.04
 
-WORKDIR /io
 WORKDIR /mediapipe
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -34,6 +33,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libopencv-imgproc-dev \
         libopencv-video-dev \
         libssl-dev \
+        mesa-common-dev \
+        libegl1-mesa-dev \
+        libgles2-mesa-dev \
         software-properties-common && \
     add-apt-repository -y ppa:openjdk-r/ppa && \
     apt-get update && apt-get install -y openjdk-8-jdk && \
