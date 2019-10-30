@@ -81,6 +81,7 @@ azel-${BAZEL_VERSION}-installer-linux-x86_64.sh" && \
 
 COPY . /mediapipe/
 
+
 # build the application and run it
 RUN bazel build -c opt --copt -DMESA_EGL_NO_X11_HEADERS     mediapipe/examples/desktop/hand_tracking:hand_tracking_gpu_webserver
 RUN GLOG_logtostderr=1 bazel-bin/mediapipe/examples/desktop/hand_tracking/hand_tracking_gpu_webserver   --calculator_graph_config_file=mediapipe/graphs/hand_tracking/hand_tracking_mobile_extended.pbtxt  9090
