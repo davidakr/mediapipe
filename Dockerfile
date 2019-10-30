@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM ubuntu:latest
+FROM ubuntu:18.04
 
 WORKDIR /io
 WORKDIR /mediapipe
@@ -22,6 +22,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
+        snapd \
         curl \
         git \
         wget \
@@ -32,6 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libopencv-highgui-dev \
         libopencv-imgproc-dev \
         libopencv-video-dev \
+        libssl-dev \
         software-properties-common && \
     add-apt-repository -y ppa:openjdk-r/ppa && \
     apt-get update && apt-get install -y openjdk-8-jdk && \
@@ -41,10 +43,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --upgrade setuptools
 RUN pip install future
 
+
 # Install pistache
-RUN add-apt-repository ppa:kip/pistache-unstable
-RUN apt update
-RUN apt install libpistache-dev
+WORKDIR /
+RUN pip install cmake
+RUN git clone https://github.com/oktal/pistache.git
+WORKDIR pistache
+RUN git submodule update --init
+RUN mkdir -p build
+RUN mkdir -p prefix
+WORKDIR /pistache/build
+RUN cmake -G "Unix Makefiles" \
+     -DCMAKE_BUILD_TYPE=Release \
+     -DPISTACHE_BUILD_EXAMPLES=false \
+     -DPISTACHE_BUILD_TESTS=false \
+     -DPISTACHE_BUILD_DOCS=false \
+     -DPISTACHE_USE_SSL=true \
+     -DCMAKE_INSTALL_PREFIX=$PWD/../prefix \
+     ../
+RUN make -j
+RUN make install
+
+WORKDIR /mediapipe
+
 
 # Install bazel
 ARG BAZEL_VERSION=0.26.1
@@ -58,6 +79,6 @@ azel-${BAZEL_VERSION}-installer-linux-x86_64.sh" && \
 
 COPY . /mediapipe/
 
-# If we want the docker image to contain the pre-built object_detection_offline_demo binary, do the following
+# build the application and run it
 RUN bazel build -c opt --copt -DMESA_EGL_NO_X11_HEADERS     mediapipe/examples/desktop/hand_tracking:hand_tracking_gpu_webserver
 RUN GLOG_logtostderr=1 bazel-bin/mediapipe/examples/desktop/hand_tracking/hand_tracking_gpu_webserver   --calculator_graph_config_file=mediapipe/graphs/hand_tracking/hand_tracking_mobile_extended.pbtxt  9090
