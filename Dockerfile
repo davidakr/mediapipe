@@ -14,8 +14,6 @@
 
 FROM ubuntu:latest
 
-MAINTAINER <mediapipe@google.com>
-
 WORKDIR /io
 WORKDIR /mediapipe
 
@@ -43,6 +41,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --upgrade setuptools
 RUN pip install future
 
+# Install pistache
+RUN add-apt-repository ppa:kip/pistache-unstable
+RUN apt update
+RUN apt install libpistache-dev
+
 # Install bazel
 ARG BAZEL_VERSION=0.26.1
 RUN mkdir /bazel && \
@@ -56,4 +59,5 @@ azel-${BAZEL_VERSION}-installer-linux-x86_64.sh" && \
 COPY . /mediapipe/
 
 # If we want the docker image to contain the pre-built object_detection_offline_demo binary, do the following
-# RUN bazel build -c opt --define MEDIAPIPE_DISABLE_GPU=1 mediapipe/examples/desktop/demo:object_detection_tensorflow_demo
+RUN bazel build -c opt --copt -DMESA_EGL_NO_X11_HEADERS     mediapipe/examples/desktop/hand_tracking:hand_tracking_gpu_webserver
+RUN GLOG_logtostderr=1 bazel-bin/mediapipe/examples/desktop/hand_tracking/hand_tracking_gpu_webserver   --calculator_graph_config_file=mediapipe/graphs/hand_tracking/hand_tracking_mobile_extended.pbtxt  9090
