@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM ubuntu:18.04
+FROM nvidia/cudagl:10.1-base
 
 WORKDIR /mediapipe
 
@@ -44,27 +44,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN pip install --upgrade setuptools
 RUN pip install future
+RUN pip install cmake
+RUN pip install numpy
+RUN pip install opencv-python
 
 
 # Install pistache
 WORKDIR /
-RUN pip install cmake
-RUN git clone https://github.com/oktal/pistache.git
-WORKDIR pistache
-RUN git submodule update --init
-RUN mkdir -p build
-RUN mkdir -p prefix
-WORKDIR /pistache/build
-RUN cmake -G "Unix Makefiles" \
-     -DCMAKE_BUILD_TYPE=Release \
-     -DPISTACHE_BUILD_EXAMPLES=false \
-     -DPISTACHE_BUILD_TESTS=false \
-     -DPISTACHE_BUILD_DOCS=false \
-     -DPISTACHE_USE_SSL=true \
-     -DCMAKE_INSTALL_PREFIX=$PWD/../prefix \
-     ../
-RUN make -j
-RUN make install
+RUN git clone https://github.com/oktal/pistache.git && \
+    cd pistache && \
+    git checkout 80601424790228f191245e6856c8824c2b5e20b8 && \
+    git submodule update --init && \
+    mkdir build && \
+    cd build && \
+    cmake -G "Unix Makefiles"  \
+        -DCMAKE_BUILD_TYPE=Release .. && \
+    make -j && \
+    make install
 
 WORKDIR /mediapipe
 
@@ -84,4 +80,4 @@ COPY . /mediapipe/
 
 # build the application and run it
 RUN bazel build -c opt --copt -DMESA_EGL_NO_X11_HEADERS     mediapipe/examples/desktop/hand_tracking:hand_tracking_gpu_webserver
-RUN GLOG_logtostderr=1 bazel-bin/mediapipe/examples/desktop/hand_tracking/hand_tracking_gpu_webserver   --calculator_graph_config_file=mediapipe/graphs/hand_tracking/hand_tracking_mobile_extended.pbtxt  9090
+CMD GLOG_logtostderr=1 bazel-bin/mediapipe/examples/desktop/hand_tracking/hand_tracking_gpu_webserver   --calculator_graph_config_file=mediapipe/graphs/hand_tracking/hand_tracking_mobile_extended.pbtxt  9090

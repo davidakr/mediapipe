@@ -160,7 +160,7 @@ new_local_repository(
 new_local_repository(
     name = "linux_pistache",
     build_file = "@//third_party:pistache_linux.BUILD",
-    path = "/usr",
+    path = "/usr/local",
 )
 
 # remote base64 library
@@ -169,7 +169,7 @@ load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
 new_git_repository(
     name = "cpp-base64",
     remote = "https://github.com/ReneNyffenegger/cpp-base64.git",
-    branch = "master",          
+    commit = "a8aae956a2f07df9aac25b064cf4cd92d56aac45",
     build_file_content="""
 cc_library(
     name = "cpp-base64",
@@ -185,7 +185,7 @@ cc_library(
 new_git_repository(
     name = "cpp-json",
     remote = "https://github.com/Tencent/rapidjson.git",
-    branch = "master",          
+    commit = "bb5f966b9939d6cdfbac3462a0410e185099b3af",          
     build_file_content="""
 cc_library(
     name = "cpp-json",
