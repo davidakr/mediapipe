@@ -6,7 +6,7 @@ A microservice based on the hand_tracking_gpu example from mediapipe. Reaches up
 ## How to run the micoservice:
 
 * build the docker image from this repository  `docker build https://github.com/davidakr/mediapipe.git`
-* run   `docker run -p 9090:9090`
+* run   `docker run -p 9090:9090` and ensure you share xhosts
 * webserver is running on port 9090
 
 ## How to use it:
