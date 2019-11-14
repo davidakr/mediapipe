@@ -325,6 +325,10 @@ class InputHandler : public Http::Handler
 
       writer.send(Http::Code::Ok, jsonResponse);
     }
+    else
+    {
+      writer.send(Http::Code::No_Content);
+    }
   }
 };
 
