@@ -163,6 +163,14 @@ new_local_repository(
     path = "/usr/local",
 )
 
+# local kinect library
+
+new_local_repository(
+    name = "linux_kinect",
+    build_file = "@//third_party:kinect_linux.BUILD",
+    path = "/usr",
+)
+
 # remote base64 library
 
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")

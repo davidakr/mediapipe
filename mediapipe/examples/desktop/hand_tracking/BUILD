@@ -50,9 +50,9 @@ cc_binary(
 )
 
 cc_binary(
-    name = "hand_tracking_gpu_webserver_extended",
+    name = "hand_tracking_gpu_kinect",
     deps = [
-        "//mediapipe/examples/desktop:simple_run_graph_main",
+        "//mediapipe/examples/desktop:run_graph_kinect",
         "//mediapipe/graphs/hand_tracking:mobile_calculators",
     ],
 )

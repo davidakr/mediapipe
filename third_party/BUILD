@@ -28,6 +28,14 @@ cc_library(
 )
 
 cc_library(
+    name = "kinect",
+    visibility = ["//visibility:public"],
+    deps = [
+            "@linux_kinect//:kinect",
+        ],
+)
+
+cc_library(
     name = "opencv",
     visibility = ["//visibility:public"],
     deps = select({
