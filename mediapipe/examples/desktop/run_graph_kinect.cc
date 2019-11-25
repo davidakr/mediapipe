@@ -16,6 +16,7 @@
 // This example requires a linux computer and a GPU with EGL support drivers.
 
 #include "mediapipe/framework/calculator_framework.h"
+#include "mediapipe/framework/formats/landmark.pb.h"
 #include "mediapipe/framework/formats/image_frame.h"
 #include "mediapipe/framework/formats/image_frame_opencv.h"
 #include "mediapipe/framework/port/commandlineflags.h"
@@ -28,11 +29,16 @@
 #include "mediapipe/gpu/gl_calculator_helper.h"
 #include "mediapipe/gpu/gpu_buffer.h"
 #include "mediapipe/gpu/gpu_shared_data_internal.h"
+#include "mediapipe/calculators/core/concatenate_vector_calculator.h"
+
 
 #include "kinectCamera.h"
 
 constexpr char kInputStream[] = "input_video";
-constexpr char kOutputStream[] = "output_video";
+constexpr char videoOutputStream[] = "output_video";
+constexpr char landmarkOutputStream[] = "hand_landmarks";
+constexpr char presenceOutputStream[] = "hand_presence";
+
 constexpr char kWindowName[] = "MediaPipe";
 
 DEFINE_string(
@@ -72,8 +78,10 @@ DEFINE_string(output_video_path, "",
   cv::namedWindow(kWindowName, /*flags=WINDOW_AUTOSIZE*/ 1);
 
   LOG(INFO) << "Start running the calculator graph.";
-  ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller poller,
-                   graph.AddOutputStreamPoller(kOutputStream));
+  ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerPresence, graph.AddOutputStreamPoller(presenceOutputStream));
+  ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerVideo, graph.AddOutputStreamPoller(videoOutputStream));
+  ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerLandmark, graph.AddOutputStreamPoller(landmarkOutputStream));
+
   MP_RETURN_IF_ERROR(graph.StartRun({}));
 
   LOG(INFO) << "Start grabbing and processing frames.";
@@ -133,7 +141,7 @@ DEFINE_string(output_video_path, "",
 
     // Get the graph result packet, or stop if that fails.
     mediapipe::Packet packet;
-    if (!poller.Next(&packet))
+    if (!pollerVideo.Next(&packet))
       break;
     std::unique_ptr<mediapipe::ImageFrame> output_frame;
 
@@ -161,6 +169,23 @@ DEFINE_string(output_video_path, "",
     cv::cvtColor(output_frame_mat, output_frame_mat, cv::COLOR_RGB2BGR);
 
     cv::imshow(kWindowName, output_frame_mat);
+
+    // Process landmarks
+    if (!pollerLandmark.Next(&packet))
+    {
+      break;
+    }
+    LOG(INFO) << "Landmark received.";
+    auto landmark_frame = packet.Get<std::vector<mediapipe::NormalizedLandmark, std::allocator<mediapipe::NormalizedLandmark>>>();
+
+    //Process Hand Presence
+    if (!pollerPresence.Next(&packet))
+    {
+      break;
+    }
+    LOG(INFO) << "Presence received.";
+    auto presence_frame = packet.Get<bool>();
+
     // Press any key to exit.
     const int pressed_key = cv::waitKey(5);
     if (pressed_key >= 0 && pressed_key != 255)
