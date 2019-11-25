@@ -87,8 +87,8 @@ DEFINE_string(output_video_path, "",
     cv::Mat depth_frame_transformed;
     kinect.captureFrame();
     camera_frame_raw = kinect.getColorImage();
-    depth_frame_raw = kinect.getDepthImage();
-    depth_frame_transformed = kinect.convertPerspectiveDepthToColor();
+    //depth_frame_raw = kinect.getDepthImage();
+    //depth_frame_transformed = kinect.convertPerspectiveDepthToColor();
     kinect.releaseFrame();
 
     /*double min;
