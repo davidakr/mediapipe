@@ -1,0 +1,2 @@
+bazel build -c opt --copt -DMESA_EGL_NO_X11_HEADERS     mediapipe/application:hand_tracking_gpu_kinect
+GLOG_logtostderr=1 bazel-bin/mediapipe/application/hand_tracking_gpu_kinect   --calculator_graph_config_file=mediapipe/graphs/hand_tracking/hand_tracking_mobile.pbtxt 
