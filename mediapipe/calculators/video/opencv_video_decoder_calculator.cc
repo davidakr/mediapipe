@@ -123,7 +123,6 @@ class OpenCvVideoDecoderCalculator : public CalculatorBase {
       cc->Outputs()
           .Tag("VIDEO_PRESTREAM")
           .Add(header.release(), Timestamp::PreStream());
-      cc->Outputs().Tag("VIDEO_PRESTREAM").Close();
     }
     // Rewind to the very first frame.
     cap_->set(cv::CAP_PROP_POS_AVI_RATIO, 0);

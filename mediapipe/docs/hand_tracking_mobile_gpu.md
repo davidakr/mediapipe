@@ -100,8 +100,8 @@ see the Visualizing Subgraphs section in the
 ```bash
 # MediaPipe graph that performs hand tracking with TensorFlow Lite on GPU.
 # Used in the examples in
-# mediapipe/examples/android/src/java/com/mediapipe/apps/handtrackinggpu and
-# mediapipe/examples/ios/handtrackinggpu.
+# mediapipie/examples/android/src/java/com/mediapipe/apps/handtrackinggpu and
+# mediapipie/examples/ios/handtrackinggpu.
 
 # Images coming into and out of the graph.
 input_stream: "input_video"

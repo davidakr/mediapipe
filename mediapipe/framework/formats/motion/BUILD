@@ -27,13 +27,12 @@ package(default_visibility = ["//visibility:private"])
 proto_library(
     name = "optical_flow_field_data_proto",
     srcs = ["optical_flow_field_data.proto"],
-    visibility = ["//visibility:public"],
 )
 
 mediapipe_cc_proto_library(
     name = "optical_flow_field_data_cc_proto",
     srcs = ["optical_flow_field_data.proto"],
-    visibility = ["//visibility:public"],
+    visibility = ["//mediapipe:__subpackages__"],
     deps = [":optical_flow_field_data_proto"],
 )
 
@@ -42,7 +41,7 @@ cc_library(
     srcs = ["optical_flow_field.cc"],
     hdrs = ["optical_flow_field.h"],
     visibility = [
-        "//visibility:public",
+        "//mediapipe:__subpackages__",
     ],
     deps = [
         "//mediapipe/framework:type_map",
