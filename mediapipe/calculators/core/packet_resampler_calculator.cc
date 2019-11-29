@@ -74,12 +74,6 @@ class PacketResamplerCalculator : public CalculatorBase {
   ::mediapipe::Status Process(CalculatorContext* cc) override;
 
  private:
-  // Calculates the first sampled timestamp that incorporates a jittering
-  // offset.
-  void InitializeNextOutputTimestampWithJitter();
-  // Calculates the next sampled timestamp that incorporates a jittering offset.
-  void UpdateNextOutputTimestampWithJitter();
-
   // Logic for Process() when jitter_ != 0.0.
   ::mediapipe::Status ProcessWithJitter(CalculatorContext* cc);
 
@@ -239,7 +233,6 @@ TimestampDiff TimestampDiffFromSeconds(double seconds) {
       << Timestamp::kTimestampUnitsPerSecond;
 
   frame_time_usec_ = static_cast<int64>(1000000.0 / frame_rate_);
-
   video_header_.frame_rate = frame_rate_;
 
   if (resampler_options.output_header() !=
@@ -302,17 +295,6 @@ TimestampDiff TimestampDiffFromSeconds(double seconds) {
   return ::mediapipe::OkStatus();
 }
 
-void PacketResamplerCalculator::InitializeNextOutputTimestampWithJitter() {
-  next_output_timestamp_ =
-      first_timestamp_ + frame_time_usec_ * random_->RandFloat();
-}
-
-void PacketResamplerCalculator::UpdateNextOutputTimestampWithJitter() {
-  next_output_timestamp_ +=
-      frame_time_usec_ *
-      ((1.0 - jitter_) + 2.0 * jitter_ * random_->RandFloat());
-}
-
 ::mediapipe::Status PacketResamplerCalculator::ProcessWithJitter(
     CalculatorContext* cc) {
   RET_CHECK_GT(cc->InputTimestamp(), Timestamp::PreStream());
@@ -320,13 +302,8 @@ void PacketResamplerCalculator::UpdateNextOutputTimestampWithJitter() {
 
   if (first_timestamp_ == Timestamp::Unset()) {
     first_timestamp_ = cc->InputTimestamp();
-    InitializeNextOutputTimestampWithJitter();
-    if (first_timestamp_ == next_output_timestamp_) {
-      OutputWithinLimits(
-          cc,
-          cc->Inputs().Get(input_data_id_).Value().At(next_output_timestamp_));
-      UpdateNextOutputTimestampWithJitter();
-    }
+    next_output_timestamp_ =
+        first_timestamp_ + frame_time_usec_ * random_->RandFloat();
     return ::mediapipe::OkStatus();
   }
 
@@ -345,7 +322,9 @@ void PacketResamplerCalculator::UpdateNextOutputTimestampWithJitter() {
                               ? last_packet_
                               : cc->Inputs().Get(input_data_id_).Value())
                              .At(next_output_timestamp_));
-  UpdateNextOutputTimestampWithJitter();
+  next_output_timestamp_ +=
+      frame_time_usec_ *
+      ((1.0 - jitter_) + 2.0 * jitter_ * random_->RandFloat());
   return ::mediapipe::OkStatus();
 }
 

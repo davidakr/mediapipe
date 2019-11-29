@@ -24,12 +24,12 @@ package(default_visibility = ["//visibility:private"])
 proto_library(
     name = "anchor_proto",
     srcs = ["anchor.proto"],
-    visibility = ["//visibility:public"],
+    visibility = ["//mediapipe:__subpackages__"],
 )
 
 mediapipe_cc_proto_library(
     name = "anchor_cc_proto",
     srcs = ["anchor.proto"],
-    visibility = ["//visibility:public"],
+    visibility = ["//mediapipe:__subpackages__"],
     deps = [":anchor_proto"],
 )

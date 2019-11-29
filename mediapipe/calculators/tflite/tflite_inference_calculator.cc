@@ -27,7 +27,8 @@
 #include "tensorflow/lite/kernels/register.h"
 #include "tensorflow/lite/model.h"
 
-#if !defined(MEDIAPIPE_DISABLE_GPU) && !defined(MEDIAPIPE_DISABLE_GL_COMPUTE)
+#if !defined(MEDIAPIPE_DISABLE_GPU) && !defined(__EMSCRIPTEN__) && \
+    !defined(__APPLE__)
 #include "mediapipe/gpu/gl_calculator_helper.h"
 #include "mediapipe/gpu/gpu_buffer.h"
 #include "tensorflow/lite/delegates/gpu/common/shape.h"
@@ -48,7 +49,6 @@
 #include "tensorflow/lite/delegates/gpu/common/shape.h"
 #include "tensorflow/lite/delegates/gpu/metal/buffer_convert.h"
 #include "tensorflow/lite/delegates/gpu/metal_delegate.h"
-#include "tensorflow/lite/delegates/gpu/metal_delegate_internal.h"
 #endif  // iOS
 
 namespace {
@@ -63,28 +63,6 @@ typedef id<MTLBuffer> GpuTensor;
 // Round up n to next multiple of m.
 size_t RoundUp(size_t n, size_t m) { return ((n + m - 1) / m) * m; }  // NOLINT
 }  // namespace
-
-#if defined(MEDIAPIPE_EDGE_TPU)
-#include "edgetpu.h"
-
-// Creates and returns an Edge TPU interpreter to run the given edgetpu model.
-std::unique_ptr<tflite::Interpreter> BuildEdgeTpuInterpreter(
-    const tflite::FlatBufferModel& model,
-    tflite::ops::builtin::BuiltinOpResolver* resolver,
-    edgetpu::EdgeTpuContext* edgetpu_context) {
-  resolver->AddCustom(edgetpu::kCustomOp, edgetpu::RegisterCustomOp());
-  std::unique_ptr<tflite::Interpreter> interpreter;
-  if (tflite::InterpreterBuilder(model, *resolver)(&interpreter) != kTfLiteOk) {
-    std::cerr << "Failed to build edge TPU interpreter." << std::endl;
-  }
-  interpreter->SetExternalContext(kTfLiteEdgeTpuContext, edgetpu_context);
-  interpreter->SetNumThreads(1);
-  if (interpreter->AllocateTensors() != kTfLiteOk) {
-    std::cerr << "Failed to allocate edge TPU tensors." << std::endl;
-  }
-  return interpreter;
-}
-#endif  // MEDIAPIPE_EDGE_TPU
 
 // TfLiteInferenceCalculator File Layout:
 //  * Header
@@ -182,11 +160,6 @@ class TfLiteInferenceCalculator : public CalculatorBase {
   std::unique_ptr<GPUData> gpu_data_in_;
   std::vector<std::unique_ptr<GPUData>> gpu_data_out_;
   TFLBufferConvert* converter_from_BPHWC4_ = nil;
-#endif
-
-#if defined(MEDIAPIPE_EDGE_TPU)
-  std::shared_ptr<edgetpu::EdgeTpuContext> edgetpu_context_ =
-      edgetpu::EdgeTpuManager::GetSingleton()->OpenDevice();
 #endif
 
   std::string model_path_ = "";
@@ -452,9 +425,6 @@ REGISTER_CALCULATOR(TfLiteInferenceCalculator);
 #endif
     delegate_ = nullptr;
   }
-#if defined(MEDIAPIPE_EDGE_TPU)
-  edgetpu_context_.reset();
-#endif
   return ::mediapipe::OkStatus();
 }
 
@@ -488,18 +458,16 @@ REGISTER_CALCULATOR(TfLiteInferenceCalculator);
   model_ = tflite::FlatBufferModel::BuildFromFile(model_path_.c_str());
   RET_CHECK(model_);
 
-  tflite::ops::builtin::BuiltinOpResolver op_resolver;
   if (cc->InputSidePackets().HasTag("CUSTOM_OP_RESOLVER")) {
-    op_resolver = cc->InputSidePackets()
-                      .Tag("CUSTOM_OP_RESOLVER")
-                      .Get<tflite::ops::builtin::BuiltinOpResolver>();
+    const auto& op_resolver =
+        cc->InputSidePackets()
+            .Tag("CUSTOM_OP_RESOLVER")
+            .Get<tflite::ops::builtin::BuiltinOpResolver>();
+    tflite::InterpreterBuilder(*model_, op_resolver)(&interpreter_);
+  } else {
+    const tflite::ops::builtin::BuiltinOpResolver op_resolver;
+    tflite::InterpreterBuilder(*model_, op_resolver)(&interpreter_);
   }
-#if defined(MEDIAPIPE_EDGE_TPU)
-  interpreter_ =
-      BuildEdgeTpuInterpreter(*model_, &op_resolver, edgetpu_context_.get());
-#else
-  tflite::InterpreterBuilder(*model_, op_resolver)(&interpreter_);
-#endif  // MEDIAPIPE_EDGE_TPU
 
   RET_CHECK(interpreter_);
 
@@ -585,9 +553,9 @@ REGISTER_CALCULATOR(TfLiteInferenceCalculator);
 
 #if defined(__APPLE__) && !TARGET_OS_OSX  // iOS
   // Configure and create the delegate.
-  TFLGpuDelegateOptions options;
+  GpuDelegateOptions options;
   options.allow_precision_loss = false;  // Must match converter, F=float/T=half
-  options.wait_type = TFLGpuDelegateWaitType::TFLGpuDelegateWaitTypePassive;
+  options.wait_type = GpuDelegateOptions::WaitType::kPassive;
   if (!delegate_) delegate_ = TFLGpuDelegateCreate(&options);
   id<MTLDevice> device = gpu_helper_.mtlDevice;
 

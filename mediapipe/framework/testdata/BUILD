@@ -31,7 +31,7 @@ mediapipe_cc_proto_library(
     name = "sky_light_calculator_cc_proto",
     srcs = ["sky_light_calculator.proto"],
     cc_deps = ["//mediapipe/framework:calculator_cc_proto"],
-    visibility = ["//visibility:public"],
+    visibility = ["//mediapipe:__subpackages__"],
     deps = [":sky_light_calculator_proto"],
 )
 
@@ -45,7 +45,7 @@ mediapipe_cc_proto_library(
     name = "night_light_calculator_cc_proto",
     srcs = ["night_light_calculator.proto"],
     cc_deps = ["//mediapipe/framework:calculator_cc_proto"],
-    visibility = ["//visibility:public"],
+    visibility = ["//mediapipe:__subpackages__"],
     deps = [":night_light_calculator_proto"],
 )
 

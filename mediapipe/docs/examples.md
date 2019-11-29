@@ -76,15 +76,6 @@ MediaPipe with a TFLite model for hand tracking in a GPU-accelerated pipeline.
 *   [Android](./hand_tracking_mobile_gpu.md)
 *   [iOS](./hand_tracking_mobile_gpu.md)
 
-### Multi-Hand Tracking with GPU
-
-[Multi-Hand Tracking with GPU](./multi_hand_tracking_mobile_gpu.md) illustrates
-how to use MediaPipe with a TFLite model for multi-hand tracking in a
-GPU-accelerated pipeline.
-
-*   [Android](./multi_hand_tracking_mobile_gpu.md)
-*   [iOS](./multi_hand_tracking_mobile_gpu.md)
-
 ### Hair Segmentation with GPU
 
 [Hair Segmentation on GPU](./hair_segmentation_mobile_gpu.md) illustrates how to
@@ -141,15 +132,6 @@ with live video from a webcam.
 *   [Desktop GPU](./hand_tracking_desktop.md)
 *   [Desktop CPU](./hand_tracking_desktop.md)
 
-### Multi-Hand Tracking on Desktop with Webcam
-
-[Multi-Hand Tracking on Desktop with Webcam](./multi_hand_tracking_desktop.md)
-shows how to use MediaPipe with a TFLite model for multi-hand tracking on
-desktop using CPU or GPU with live video from a webcam.
-
-*   [Desktop GPU](./multi_hand_tracking_desktop.md)
-*   [Desktop CPU](./multi_hand_tracking_desktop.md)
-
 ### Hair Segmentation on Desktop with Webcam
 
 [Hair Segmentation on Desktop with Webcam](./hair_segmentation_desktop.md) shows
@@ -157,20 +139,3 @@ how to use MediaPipe with a TFLite model for hair segmentation on desktop using
 GPU with live video from a webcam.
 
 *   [Desktop GPU](./hair_segmentation_desktop.md)
-
-## Google Coral (machine learning acceleration with Google EdgeTPU)
-
-Below are code samples on how to run MediaPipe on Google Coral Dev Board.
-
-### Object Detection on Coral
-
-[Object Detection on Coral with Webcam](./object_detection_coral_devboard.md)
-shows how to run quantized object detection TFlite model accelerated with
-EdgeTPU on
-[Google Coral Dev Board](https://coral.withgoogle.com/products/dev-board).
-
-### Face Detection on Coral
-
-[Face Detection on Coral with Webcam](./face_detection_coral_devboard.md) shows
-how to use quantized face detection TFlite model accelerated with EdgeTPU on
-[Google Coral Dev Board](https://coral.withgoogle.com/products/dev-board).

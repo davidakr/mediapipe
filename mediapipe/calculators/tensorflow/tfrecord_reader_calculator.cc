@@ -85,7 +85,7 @@ class TFRecordReaderCalculator : public CalculatorBase {
   tensorflow::io::RecordReader reader(file.get(),
                                       tensorflow::io::RecordReaderOptions());
   tensorflow::uint64 offset = 0;
-  tensorflow::tstring example_str;
+  std::string example_str;
   const int target_idx =
       cc->InputSidePackets().HasTag(kRecordIndex)
           ? cc->InputSidePackets().Tag(kRecordIndex).Get<int>()
@@ -98,7 +98,7 @@ class TFRecordReaderCalculator : public CalculatorBase {
     if (current_idx == target_idx) {
       if (cc->OutputSidePackets().HasTag(kExampleTag)) {
         tensorflow::Example tf_example;
-        tf_example.ParseFromArray(example_str.data(), example_str.size());
+        tf_example.ParseFromString(example_str);
         cc->OutputSidePackets()
             .Tag(kExampleTag)
             .Set(MakePacket<tensorflow::Example>(std::move(tf_example)));

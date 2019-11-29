@@ -29,7 +29,7 @@ below and paste it into [MediaPipe Visualizer](https://viz.mediapipe.dev/).
 ```bash
 # MediaPipe graph that performs hair segmentation with TensorFlow Lite on GPU.
 # Used in the example in
-# mediapipe/examples/android/src/java/com/mediapipe/apps/hairsegmentationgpu.
+# mediapipie/examples/android/src/java/com/mediapipe/apps/hairsegmentationgpu.
 
 # Images on GPU coming into and out of the graph.
 input_stream: "input_video"

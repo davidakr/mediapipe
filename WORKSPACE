@@ -10,7 +10,8 @@ http_archive(
     sha256 = "2ef429f5d7ce7111263289644d233707dba35e39696377ebab8b0bc701f7818e",
 )
 load("@bazel_skylib//lib:versions.bzl", "versions")
-versions.check(minimum_bazel_version = "0.24.1")
+versions.check(minimum_bazel_version = "0.24.1",
+               maximum_bazel_version = "0.29.1")
 
 # ABSL cpp library.
 http_archive(
@@ -103,9 +104,9 @@ http_archive(
     ],
 )
 
-# 2019-11-21
-_TENSORFLOW_GIT_COMMIT = "f482488b481a799ca07e7e2d153cf47b8e91a60c"
-_TENSORFLOW_SHA256= "8d9118c2ce186c7e1403f04b96982fe72c184060c7f7a93e30a28dca358694f0"
+# 2019-08-15
+_TENSORFLOW_GIT_COMMIT = "67def62936e28f97c16182dfcc467d8d1cae02b4"
+_TENSORFLOW_SHA256= "ddd4e3c056e7c0ff2ef29133b30fa62781dfbf8a903e99efb91a02d292fa9562"
 http_archive(
     name = "org_tensorflow",
     urls = [
@@ -114,6 +115,13 @@ http_archive(
     ],
     strip_prefix = "tensorflow-%s" % _TENSORFLOW_GIT_COMMIT,
     sha256 = _TENSORFLOW_SHA256,
+    patches = [
+        "@//third_party:tensorflow_065c20bf79253257c87bd4614bb9a7fdef015cbb.diff",
+        "@//third_party:tensorflow_f67fcbefce906cd419e4657f0d41e21019b71abd.diff",
+    ],
+    patch_args = [
+        "-p1",
+    ],
 )
 
 load("@org_tensorflow//tensorflow:workspace.bzl", "tf_workspace")
@@ -199,10 +207,11 @@ cc_library(
 
 http_archive(
     name = "android_opencv",
+    sha256 = "056b849842e4fa8751d09edbb64530cfa7a63c84ccd232d0ace330e27ba55d0b",
     build_file = "@//third_party:opencv_android.BUILD",
     strip_prefix = "OpenCV-android-sdk",
     type = "zip",
-    url = "https://github.com/opencv/opencv/releases/download/3.4.3/opencv-3.4.3-android-sdk.zip",
+    url = "https://github.com/opencv/opencv/releases/download/4.1.0/opencv-4.1.0-android-sdk.zip",
 )
 
 # After OpenCV 3.2.0, the pre-compiled opencv2.framework has google protobuf symbols, which will
@@ -233,18 +242,13 @@ maven_install(
     artifacts = [
         "androidx.annotation:annotation:aar:1.1.0",
         "androidx.appcompat:appcompat:aar:1.1.0-rc01",
-        "androidx.camera:camera-core:aar:1.0.0-alpha06",
-        "androidx.camera:camera-camera2:aar:1.0.0-alpha06",
         "androidx.constraintlayout:constraintlayout:aar:1.1.3",
         "androidx.core:core:aar:1.1.0-rc03",
         "androidx.legacy:legacy-support-v4:aar:1.0.0",
         "androidx.recyclerview:recyclerview:aar:1.1.0-beta02",
         "com.google.android.material:material:aar:1.0.0-rc01",
     ],
-    repositories = [
-        "https://dl.google.com/dl/android/maven2",
-        "https://repo1.maven.org/maven2",
-    ],
+    repositories = ["https://dl.google.com/dl/android/maven2"],
 )
 
 maven_server(
@@ -260,10 +264,10 @@ maven_jar(
 )
 
 maven_jar(
-    name = "androidx_concurrent_futures",
-    artifact = "androidx.concurrent:concurrent-futures:1.0.0-alpha03",
-    sha1 = "b528df95c7e2fefa2210c0c742bf3e491c1818ae",
-    server = "google_server",
+     name = "androidx_concurrent_futures",
+     artifact = "androidx.concurrent:concurrent-futures:1.0.0-alpha03",
+     sha1 = "b528df95c7e2fefa2210c0c742bf3e491c1818ae",
+     server = "google_server",
 )
 
 maven_jar(
@@ -301,11 +305,18 @@ android_sdk_repository(
 
 # iOS basic build deps.
 
-http_archive(
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+
+git_repository(
     name = "build_bazel_rules_apple",
-    sha256 = "bdc8e66e70b8a75da23b79f1f8c6207356df07d041d96d2189add7ee0780cf4e",
-    strip_prefix = "rules_apple-b869b0d3868d78a1d4ffd866ccb304fb68aa12c3",
-    url = "https://github.com/bazelbuild/rules_apple/archive/b869b0d3868d78a1d4ffd866ccb304fb68aa12c3.tar.gz",
+    remote = "https://github.com/bazelbuild/rules_apple.git",
+    tag = "0.18.0",
+    patches = [
+        "@//third_party:rules_apple_c0863d0596ae6b769a29fa3fb72ff036444fd249.diff",
+    ],
+    patch_args = [
+        "-p1",
+    ],
 )
 
 load(

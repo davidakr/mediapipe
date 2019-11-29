@@ -14,7 +14,8 @@
 
 #include "mediapipe/framework/validated_graph_config.h"
 
-#include "absl/container/flat_hash_set.h"
+#include <unordered_set>
+
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
@@ -933,7 +934,7 @@ NodeTypeInfo::NodeRef ValidatedGraphConfig::NodeForSorterIndex(
 }
 
 ::mediapipe::Status ValidatedGraphConfig::ValidateExecutors() {
-  absl::flat_hash_set<ProtoString> declared_names;
+  std::unordered_set<ProtoString> declared_names;
   for (const ExecutorConfig& executor_config : config_.executor()) {
     if (IsReservedExecutorName(executor_config.name())) {
       return ::mediapipe::InvalidArgumentErrorBuilder(MEDIAPIPE_LOC)
@@ -963,7 +964,7 @@ NodeTypeInfo::NodeRef ValidatedGraphConfig::NodeForSorterIndex(
              << "\"" << executor_name << "\" is a reserved executor name.";
     }
     // The executor must be declared in an ExecutorConfig.
-    if (!declared_names.contains(executor_name)) {
+    if (declared_names.find(executor_name) == declared_names.end()) {
       return ::mediapipe::InvalidArgumentErrorBuilder(MEDIAPIPE_LOC)
              << "The executor \"" << executor_name
              << "\" is not declared in an ExecutorConfig.";

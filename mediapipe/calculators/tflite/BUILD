@@ -238,7 +238,6 @@ cc_library(
             "@org_tensorflow//tensorflow/lite/delegates/gpu/common:shape",
             "@org_tensorflow//tensorflow/lite/delegates/gpu/metal:buffer_convert",
             "@org_tensorflow//tensorflow/lite/delegates/gpu:metal_delegate",
-            "@org_tensorflow//tensorflow/lite/delegates/gpu:metal_delegate_internal",
         ],
         "//conditions:default": [
             "//mediapipe/gpu:gl_calculator_helper",
