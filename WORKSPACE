@@ -163,6 +163,14 @@ new_local_repository(
     path = "/usr",
 )
 
+# Prebuilt ROS workspace
+
+new_local_repository(
+    name='ros',
+    path='bundle_ws/install',
+    build_file='@//third_party:ros.BUILD',
+)
+
 # remote base64 library
 
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")

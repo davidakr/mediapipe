@@ -148,4 +148,3 @@ void kinectCamera::releaseImage()
     k4a_image_release(color_image);
     k4a_image_release(depth_image);
 }
-

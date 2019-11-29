@@ -1,34 +1,14 @@
-# Copyright 2019 The MediaPipe Authors.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-licenses(["notice"])  # Apache 2.0
-
-package(default_visibility = [
-    "//visibility:public",
-])
-
 cc_binary(
-    name = "hand_tracking_gpu_kinect",
+    name = "hand_tracking",
     deps = [
-        "//mediapipe/application:run_graph_kinect",
+        "//mediapipe/application:app",
         "//mediapipe/graphs/hand_tracking:mobile_calculators",
     ],
 )
 
 cc_library(
-    name = "run_graph_kinect",
-    srcs = ["run_graph_kinect.cc"],
+    name = "app",
+    srcs = ["app.cc"],
     deps = [
         "//mediapipe/framework:calculator_framework",
         "//mediapipe/framework/formats:image_frame",
@@ -43,9 +23,10 @@ cc_library(
         "//mediapipe/gpu:gl_calculator_helper",
         "//mediapipe/gpu:gpu_buffer",
         "//mediapipe/gpu:gpu_shared_data_internal",
-        "//mediapipe/calculators/core:concatenate_vector_calculator",
         "//third_party:kinect",
         ":kinectCamera",
+        "//mediapipe/calculators/core:concatenate_vector_calculator",
+        "@ros",
     ],
 )
 
@@ -54,9 +35,4 @@ cc_library(
     srcs = ["kinectCamera.cpp"],
     hdrs = ["kinectCamera.h"],
 )
-
-
-
-
-
 
