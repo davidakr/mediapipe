@@ -1,20 +1,3 @@
-// Copyright 2019 The MediaPipe Authors.
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-// An example of sending OpenCV webcam frames into a MediaPipe graph.
-// This example requires a linux computer and a GPU with EGL support drivers.
-
 #include "mediapipe/framework/calculator_framework.h"
 #include "mediapipe/framework/formats/landmark.pb.h"
 #include "mediapipe/framework/formats/image_frame.h"
@@ -34,7 +17,9 @@
 #include "kinectCamera.h"
 
 #include <ros/ros.h>
-#include <std_msgs/String.h>
+#include <std_msgs/Bool.h>
+#include <std_msgs/Float32MultiArray.h>
+#include <std_msgs/MultiArrayDimension.h>
 
 constexpr char kInputStream[] = "input_video";
 constexpr char videoOutputStream[] = "output_video";
@@ -42,6 +27,12 @@ constexpr char landmarkOutputStream[] = "hand_landmarks";
 constexpr char presenceOutputStream[] = "hand_presence";
 
 constexpr char kWindowName[] = "MediaPipe";
+
+const int amoutOfLandmarks = 21;
+const int positionsLandmarks = 3;
+
+const int width = 1280;
+const int height = 720;
 
 DEFINE_string(
     calculator_graph_config_file, "",
@@ -59,6 +50,13 @@ void showImage(cv::Mat mat, std::string name)
   cv::imshow(name, mat);
   cv::waitKey(1);
   return;
+}
+
+int checkPositive(int value)
+{
+  if (value < 0)
+    return 0;
+  return value;
 }
 
 ::mediapipe::Status RunMPPGraph()
@@ -85,6 +83,11 @@ void showImage(cv::Mat mat, std::string name)
   LOG(INFO) << "Initialize the kinect.";
   kinectCamera kinect = kinectCamera();
 
+  LOG(INFO) << "Initialize the ros node.";
+  ros::NodeHandle node;
+  ros::Publisher presencePublisher = node.advertise<std_msgs::Bool>("/hand_tracking/presence", 10);
+  ros::Publisher landmarksPublisher = node.advertise<std_msgs::Float32MultiArray>("/hand_tracking/landmarks", 100);
+
   LOG(INFO) << "Start running the calculator graph.";
   ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerPresence, graph.AddOutputStreamPoller(presenceOutputStream));
   ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerVideo, graph.AddOutputStreamPoller(videoOutputStream));
@@ -103,18 +106,9 @@ void showImage(cv::Mat mat, std::string name)
     cv::Mat depth_frame_transformed;
     kinect.captureFrame();
     camera_frame_raw = kinect.getColorImage();
-    //depth_frame_raw = kinect.getDepthImage();
-    //depth_frame_transformed = kinect.convertPerspectiveDepthToColor();
+    depth_frame_raw = kinect.getDepthImage();
+    depth_frame_transformed = kinect.convertPerspectiveDepthToColor();
     kinect.releaseFrame();
-
-    /*double min;
-    double max;
-    cv::minMaxIdx(depth_frame_transformed, &min, &max);
-    cv::Mat adjMap;
-    cv::convertScaleAbs(depth_frame_transformed, adjMap, 255 / max);
-    cv::namedWindow("depth", 1);
-    cv::imshow("depth", adjMap);
-    cv::waitKey(1);*/
 
     if (camera_frame_raw.empty())
     {
@@ -176,28 +170,52 @@ void showImage(cv::Mat mat, std::string name)
     cv::Mat output_frame_mat = mediapipe::formats::MatView(output_frame.get());
     cv::cvtColor(output_frame_mat, output_frame_mat, cv::COLOR_RGB2BGR);
 
-    //showImage(output_frame_mat, "color");
+    showImage(output_frame_mat, "color");
 
     // Process landmarks
     if (!pollerLandmark.Next(&packet))
     {
       break;
     }
-    LOG(INFO) << "Landmark received.";
     auto landmark_frame = packet.Get<std::vector<mediapipe::NormalizedLandmark, std::allocator<mediapipe::NormalizedLandmark>>>();
+    std_msgs::Float32MultiArray landmarks;
+    landmarks.layout.dim.push_back(std_msgs::MultiArrayDimension());
+    landmarks.layout.dim.push_back(std_msgs::MultiArrayDimension());
+    landmarks.layout.data_offset = 0;
+    landmarks.layout.dim[0].label = "landmark";
+    landmarks.layout.dim[0].size = amoutOfLandmarks;
+    landmarks.layout.dim[0].stride = amoutOfLandmarks * positionsLandmarks;
+    landmarks.layout.dim[1].label = "position";
+    landmarks.layout.dim[1].size = positionsLandmarks;
+    landmarks.layout.dim[1].size = positionsLandmarks;
+
+    // Convert landmarks
+    std::vector<float> vec;
+
+    for (auto i = landmark_frame.begin(); i != landmark_frame.end(); ++i)
+    {
+      mediapipe::NormalizedLandmark landmark = *i;
+      int pixelWidth = checkPositive(width * landmark.x());
+      int pixelHeight = checkPositive(height * landmark.y());
+      vec.push_back(pixelWidth);
+      vec.push_back(pixelHeight);
+      auto depth = depth_frame_transformed.at<float>(pixelWidth, pixelHeight);
+      vec.push_back(depth);
+    }
+
+    auto depth = depth_frame_transformed.at<float>(1280 / 2, 720 / 2);
+    LOG(INFO) << depth;
+    landmarks.data = vec;
+    landmarksPublisher.publish(landmarks);
 
     //Process Hand Presence
     if (!pollerPresence.Next(&packet))
     {
       break;
     }
-    LOG(INFO) << "Presence received.";
-    auto presence_frame = packet.Get<bool>();
-
-    // Press any key to exit.
-    const int pressed_key = cv::waitKey(5);
-    if (pressed_key >= 0 && pressed_key != 255)
-      grab_frames = false;
+    std_msgs::Bool presence;
+    presence.data = packet.Get<bool>();
+    presencePublisher.publish(presence);
   }
 
   LOG(INFO) << "Shutting down.";
@@ -210,6 +228,8 @@ int main(int argc, char **argv)
 {
   google::InitGoogleLogging(argv[0]);
   gflags::ParseCommandLineFlags(&argc, &argv, true);
+  ros::init(argc, argv, "hand_tracking_kinect");
+
   ::mediapipe::Status run_status = RunMPPGraph();
   if (!run_status.ok())
   {

@@ -16,6 +16,8 @@ private:
     k4a_image_t depth_image;
     int second;
     k4a_device_configuration_t config;
+    k4a_calibration_t calibration;
+
 
 public:
     kinectCamera();
@@ -26,6 +28,7 @@ public:
     cv::Mat convertPerspectiveDepthToColor();
     cv::Mat getColorImage();
     cv::Mat getDepthImage();
+    cv::Point3f convertTo3D(k4a_float2_t point);
 };
 
 #endif

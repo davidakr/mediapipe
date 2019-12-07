@@ -22,7 +22,7 @@ kinectCamera::kinectCamera()
     config = K4A_DEVICE_CONFIG_INIT_DISABLE_ALL;
     config.color_resolution = K4A_COLOR_RESOLUTION_720P;
     config.color_format = K4A_IMAGE_FORMAT_COLOR_MJPG;
-    config.depth_mode = K4A_DEPTH_MODE_WFOV_2X2BINNED;
+    config.depth_mode = K4A_DEPTH_MODE_WFOV_UNBINNED;
     config.camera_fps = K4A_FRAMES_PER_SECOND_15;
     config.synchronized_images_only = true;
 
@@ -32,6 +32,9 @@ kinectCamera::kinectCamera()
         printf("Failed to start cameras!\n");
         k4a_device_close(device);
     }
+
+    // Set configuration
+    k4a_device_get_calibration(device, config.depth_mode, config.color_resolution, &calibration);
 }
 
 bool kinectCamera::captureFrame()
@@ -82,12 +85,11 @@ cv::Mat kinectCamera::convertPerspectiveDepthToColor()
     auto buffer = k4a_image_get_buffer(transformed_depth_image);
     k4a_image_release(transformed_depth_image);
 
-    uint8_t *pixel = buffer;
+    /*uint8_t *pixel = buffer;
     pixel += (height / 2 + width / 2)*4;
     float r = pixel[3];
-    std::cout << r << std::endl;
 
-    /*for (int i = 0; i < height; ++i)
+    for (int i = 0; i < height; ++i)
     {
         for (int j = 0; j < width; ++j, pixel += 4)
         {
@@ -147,4 +149,32 @@ void kinectCamera::releaseImage()
 {
     k4a_image_release(color_image);
     k4a_image_release(depth_image);
+}
+
+cv::Point3f kinectCamera::convertTo3D(k4a_float2_t color2D)
+{
+    k4a_float2_t depth2D;
+    k4a_float3_t color3D;
+
+    int valid;
+    float depth;
+
+    //Get depth at color camera coordinate in mm
+    k4a_calibration_color_2d_to_depth_2d(&calibration, &color2D, depth_image, &depth2D, &valid);
+    if (valid)
+    {
+        uint16_t *depth_data = (uint16_t *)(void *)k4a_image_get_buffer(depth_image);
+        depth = (float)depth_data[(int)(depth2D.xy.x * depth2D.xy.y)];
+    }
+
+    //Get 3D point of 2D pixels in camera coordinate in mm
+    k4a_calibration_2d_to_3d(&calibration, &color2D, depth, K4A_CALIBRATION_TYPE_COLOR, K4A_CALIBRATION_TYPE_COLOR, &color3D, &valid);
+    cv::Point3f point;
+    if (valid)
+    {
+        point.x = color3D.xyz.x;
+        point.y = color3D.xyz.y;
+        point.z = color3D.xyz.z;
+    }
+    return point;
 }
