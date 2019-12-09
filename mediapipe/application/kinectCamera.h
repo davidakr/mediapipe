@@ -23,8 +23,7 @@ private:
 public:
     kinectCamera();
     bool captureFrame();
-    void releaseFrame();
-    void releaseImage();
+    void releaseMemory();
     void shutdown();
     cv::Mat convertPerspectiveDepthToColor();
     cv::Mat getColorImage();

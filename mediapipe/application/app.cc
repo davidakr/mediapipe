@@ -102,8 +102,6 @@ int checkPositive(int value)
   {
     // Capture opencv camera or video frame.
     cv::Mat camera_frame_raw;
-    cv::Mat depth_frame_raw;
-    cv::Mat depth_frame_transformed;
     kinect.captureFrame();
     camera_frame_raw = kinect.getColorImage();
     kinect.getDepthImage();
@@ -222,7 +220,7 @@ int checkPositive(int value)
     presencePublisher.publish(presence);
 
     //Release camera frames
-    kinect.releaseFrame();
+    kinect.releaseMemory();
   }
 
   LOG(INFO) << "Shutting down.";

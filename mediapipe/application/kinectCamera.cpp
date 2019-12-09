@@ -55,11 +55,6 @@ bool kinectCamera::captureFrame()
     return false;
 }
 
-void kinectCamera::releaseFrame()
-{
-    k4a_capture_release(capture);
-}
-
 cv::Mat kinectCamera::convertPerspectiveDepthToColor()
 {
     k4a_image_t transformed_depth_image = NULL;
@@ -133,16 +128,16 @@ cv::Mat kinectCamera::getDepthImage()
     return mat;
 }
 
-void kinectCamera::releaseImage()
+void kinectCamera::releaseMemory()
 {
     k4a_image_release(color_image);
-    k4a_image_release(depth_image);
+    k4a_image_release(depth_image);        
+    k4a_capture_release(capture);
 }
 
 cv::Point3f kinectCamera::convertTo3D(cv::Point2f point2D)
 {
     k4a_float2_t color2D;
-    k4a_float2_t depth2D;
     k4a_float3_t color3D;
     cv::Point3f point3D = cv::Point3f(0,0,0);
 
@@ -153,8 +148,6 @@ cv::Point3f kinectCamera::convertTo3D(cv::Point2f point2D)
     if (depth_image == NULL)
     {
         getDepthImage();
-    }
-    if(transformed_depth_mat.empty()){
         convertPerspectiveDepthToColor();
     }
 
@@ -168,10 +161,6 @@ cv::Point3f kinectCamera::convertTo3D(cv::Point2f point2D)
         point3D.x = color3D.xyz.x;
         point3D.y = color3D.xyz.y;
         point3D.z = color3D.xyz.z;
-    }
-    else
-    {
-        printf("No sucessfull 2D to 3D color camera conversion\n");
     }
     return point3D;
 }
