@@ -106,9 +106,8 @@ int checkPositive(int value)
     cv::Mat depth_frame_transformed;
     kinect.captureFrame();
     camera_frame_raw = kinect.getColorImage();
-    depth_frame_raw = kinect.getDepthImage();
-    depth_frame_transformed = kinect.convertPerspectiveDepthToColor();
-    kinect.releaseFrame();
+    kinect.getDepthImage();
+    kinect.convertPerspectiveDepthToColor();
 
     if (camera_frame_raw.empty())
     {
@@ -195,16 +194,21 @@ int checkPositive(int value)
     for (auto i = landmark_frame.begin(); i != landmark_frame.end(); ++i)
     {
       mediapipe::NormalizedLandmark landmark = *i;
-      int pixelWidth = checkPositive(width * landmark.x());
-      int pixelHeight = checkPositive(height * landmark.y());
-      vec.push_back(pixelWidth);
-      vec.push_back(pixelHeight);
-      auto depth = depth_frame_transformed.at<float>(pixelWidth, pixelHeight);
-      vec.push_back(depth);
+      float pixelWidth = checkPositive(width * landmark.x());
+      float pixelHeight = checkPositive(height * landmark.y());
+      cv::Point2f point2D;
+      point2D.x = pixelWidth;
+      point2D.y = pixelHeight;
+
+      if (point2D.x != 0 && point2D.y != 0)
+      {
+        cv::Point3f point3D = kinect.convertTo3D(point2D);
+        vec.push_back(point3D.x);
+        vec.push_back(point3D.y);
+        vec.push_back(point3D.z);
+      }
     }
 
-    auto depth = depth_frame_transformed.at<float>(1280 / 2, 720 / 2);
-    LOG(INFO) << depth;
     landmarks.data = vec;
     landmarksPublisher.publish(landmarks);
 
@@ -216,6 +220,9 @@ int checkPositive(int value)
     std_msgs::Bool presence;
     presence.data = packet.Get<bool>();
     presencePublisher.publish(presence);
+
+    //Release camera frames
+    kinect.releaseFrame();
   }
 
   LOG(INFO) << "Shutting down.";
