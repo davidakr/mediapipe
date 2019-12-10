@@ -1,22 +1,15 @@
 
-# Hand tracking microservice using Google mediapipe
+# Hand tracking using Google mediapipe
 
-A microservice based on the hand_tracking_gpu example from mediapipe. Reaches up to 25 fps on a Laptop.
+ROS node which sends out the hand landmarks of the detected hand.
+Uses the Windows Kinect Camera.
 
-## How to run the micoservice:
+## Build 
 
-* build the docker image from this repository  `docker build https://github.com/davidakr/mediapipe.git`
-* run   `docker run -p 9090:9090` and ensure you share xhosts
-* webserver is running on port 9090
+`bazel build -c opt --copt -DMESA_EGL_NO_X11_HEADERS  mediapipe/application:hand_tracking` 
 
-## How to use it:
+## Run
 
-### Request
-base64 encoded image in the request body
+`GLOG_logtostderr=1 bazel-bin/mediapipe/application/hand_tracking   --calculator_graph_config_file=mediapipe/graphs/hand_tracking/hand_tracking_mobile.pbtxt` 
 
-### Response
-returns a json with following attributes:
-* present (boolean): if a hand is detected
-* landmarks (int x, int y): landmarks of the hand, if none is detected all are 0
-* base64 encoded image (string): the image containing the landmarks and palm detection if available
 
