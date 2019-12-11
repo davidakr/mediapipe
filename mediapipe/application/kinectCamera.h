@@ -14,6 +14,7 @@ private:
     const int32_t TIMEOUT_IN_MS = 1000;
     k4a_image_t color_image;
     k4a_image_t depth_image;
+    k4a_image_t transformed_depth_image;
     cv::Mat transformed_depth_mat;
     int second;
     k4a_device_configuration_t config;

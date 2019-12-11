@@ -57,7 +57,6 @@ bool kinectCamera::captureFrame()
 
 cv::Mat kinectCamera::convertPerspectiveDepthToColor()
 {
-    k4a_image_t transformed_depth_image = NULL;
     int color_image_width_pixels = k4a_image_get_width_pixels(color_image);
     int color_image_height_pixels = k4a_image_get_height_pixels(color_image);
     if (K4A_RESULT_SUCCEEDED != k4a_image_create(K4A_IMAGE_FORMAT_DEPTH16,
@@ -78,8 +77,7 @@ cv::Mat kinectCamera::convertPerspectiveDepthToColor()
     auto height = k4a_image_get_height_pixels(transformed_depth_image);
     auto width = k4a_image_get_width_pixels(transformed_depth_image);
     auto buffer = k4a_image_get_buffer(transformed_depth_image);
-    transformed_depth_mat = cv::Mat(height, width, CV_16U, (void *)buffer, cv::Mat::AUTO_STEP);
-    k4a_image_release(transformed_depth_image);
+    transformed_depth_mat = cv::Mat(height, width, CV_16UC1, (void *)buffer, cv::Mat::AUTO_STEP);
     return transformed_depth_mat;
 }
 
@@ -131,7 +129,8 @@ cv::Mat kinectCamera::getDepthImage()
 void kinectCamera::releaseMemory()
 {
     k4a_image_release(color_image);
-    k4a_image_release(depth_image);        
+    k4a_image_release(depth_image);
+    k4a_image_release(transformed_depth_image);
     k4a_capture_release(capture);
 }
 
@@ -139,7 +138,7 @@ cv::Point3f kinectCamera::convertTo3D(cv::Point2f point2D)
 {
     k4a_float2_t color2D;
     k4a_float3_t color3D;
-    cv::Point3f point3D = cv::Point3f(0,0,0);
+    cv::Point3f point3D = cv::Point3f(0, 0, 0);
 
     int valid = false;
 

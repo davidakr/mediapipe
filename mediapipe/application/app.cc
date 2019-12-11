@@ -85,8 +85,8 @@ int checkPositive(int value)
 
   LOG(INFO) << "Initialize the ros node.";
   ros::NodeHandle node;
-  ros::Publisher presencePublisher = node.advertise<std_msgs::Bool>("/hand_tracking/presence", 10);
-  ros::Publisher landmarksPublisher = node.advertise<std_msgs::Float32MultiArray>("/hand_tracking/landmarks", 100);
+  ros::Publisher presencePublisher = node.advertise<std_msgs::Bool>("/hand_tracking/presence", 1000);
+  ros::Publisher landmarksPublisher = node.advertise<std_msgs::Float32MultiArray>("/hand_tracking/landmarks", 1000);
 
   LOG(INFO) << "Start running the calculator graph.";
   ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerPresence, graph.AddOutputStreamPoller(presenceOutputStream));
@@ -191,12 +191,11 @@ int checkPositive(int value)
 
     for (auto i = landmark_frame.begin(); i != landmark_frame.end(); ++i)
     {
+      auto i = landmark_frame.begin();
       mediapipe::NormalizedLandmark landmark = *i;
       float pixelWidth = checkPositive(width * landmark.x());
       float pixelHeight = checkPositive(height * landmark.y());
       cv::Point2f point2D;
-      point2D.x = pixelWidth;
-      point2D.y = pixelHeight;
 
       if (point2D.x != 0 && point2D.y != 0)
       {
