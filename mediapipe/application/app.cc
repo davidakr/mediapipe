@@ -85,12 +85,12 @@ int checkPositive(int value)
 
   LOG(INFO) << "Initialize the ros node.";
   ros::NodeHandle node;
-  ros::Publisher presencePublisher = node.advertise<std_msgs::Bool>("/hand_tracking/presence", 1000);
+  //ros::Publisher presencePublisher = node.advertise<std_msgs::Bool>("/hand_tracking/presence", 1000);
   ros::Publisher landmarksPublisher = node.advertise<std_msgs::Float32MultiArray>("/hand_tracking/landmarks", 1000);
 
   LOG(INFO) << "Start running the calculator graph.";
-  ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerPresence, graph.AddOutputStreamPoller(presenceOutputStream));
-  ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerVideo, graph.AddOutputStreamPoller(videoOutputStream));
+  //ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerPresence, graph.AddOutputStreamPoller(presenceOutputStream));
+  //ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerVideo, graph.AddOutputStreamPoller(videoOutputStream));
   ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerLandmark, graph.AddOutputStreamPoller(landmarkOutputStream));
 
   MP_RETURN_IF_ERROR(graph.StartRun({}));
@@ -102,10 +102,11 @@ int checkPositive(int value)
   {
     // Capture opencv camera or video frame.
     cv::Mat camera_frame_raw;
+    auto start_kinect = std::chrono::system_clock::now();
     kinect.captureFrame();
     camera_frame_raw = kinect.getColorImage();
     kinect.getDepthImage();
-    kinect.convertPerspectiveDepthToColor();
+    auto end_kinect = std::chrono::system_clock::now();
 
     if (camera_frame_raw.empty())
     {
@@ -121,6 +122,8 @@ int checkPositive(int value)
         mediapipe::ImageFrame::kGlDefaultAlignmentBoundary);
     cv::Mat input_frame_mat = mediapipe::formats::MatView(input_frame.get());
     camera_frame.copyTo(input_frame_mat);
+
+    auto start_graph = std::chrono::system_clock::now();
 
     // Prepare and add graph input packet.
     MP_RETURN_IF_ERROR(
@@ -138,9 +141,14 @@ int checkPositive(int value)
           return ::mediapipe::OkStatus();
         }));
 
+    auto end_graph = std::chrono::system_clock::now();
+
     // Get the graph result packet, or stop if that fails.
     mediapipe::Packet packet;
-    if (!pollerVideo.Next(&packet))
+
+    auto start_image = std::chrono::system_clock::now();
+
+    /*if (!pollerVideo.Next(&packet))
       break;
     std::unique_ptr<mediapipe::ImageFrame> output_frame;
 
@@ -161,20 +169,26 @@ int checkPositive(int value)
           glFlush();
           texture.Release();
           return ::mediapipe::OkStatus();
-        }));
+        }));    
 
     // Convert back to opencv for display or saving.
     cv::Mat output_frame_mat = mediapipe::formats::MatView(output_frame.get());
-    cv::cvtColor(output_frame_mat, output_frame_mat, cv::COLOR_RGB2BGR);
+    cv::cvtColor(output_frame_mat, output_frame_mat, cv::COLOR_RGB2BGR);*/
 
-    showImage(output_frame_mat, "color");
+    auto end_image = std::chrono::system_clock::now();
 
+    //showImage(output_frame_mat, "color");
+
+    auto start_landmark = std::chrono::system_clock::now();
     // Process landmarks
     if (!pollerLandmark.Next(&packet))
     {
       break;
     }
     auto landmark_frame = packet.Get<std::vector<mediapipe::NormalizedLandmark, std::allocator<mediapipe::NormalizedLandmark>>>();
+
+    auto start_landmark_transformation = std::chrono::system_clock::now();
+
     std_msgs::Float32MultiArray landmarks;
     landmarks.layout.dim.push_back(std_msgs::MultiArrayDimension());
     landmarks.layout.dim.push_back(std_msgs::MultiArrayDimension());
@@ -191,11 +205,12 @@ int checkPositive(int value)
 
     for (auto i = landmark_frame.begin(); i != landmark_frame.end(); ++i)
     {
-      auto i = landmark_frame.begin();
       mediapipe::NormalizedLandmark landmark = *i;
       float pixelWidth = checkPositive(width * landmark.x());
-      float pixelHeight = checkPositive(height * landmark.y());
+      float pixelHeigth = checkPositive(height * landmark.y());
       cv::Point2f point2D;
+      point2D.x = pixelWidth;
+      point2D.y = pixelHeigth;
 
       if (point2D.x != 0 && point2D.y != 0)
       {
@@ -208,18 +223,35 @@ int checkPositive(int value)
 
     landmarks.data = vec;
     landmarksPublisher.publish(landmarks);
+    auto end_landmark = std::chrono::system_clock::now();
 
+    auto start_presence = std::chrono::system_clock::now();
     //Process Hand Presence
-    if (!pollerPresence.Next(&packet))
+    /*if (!pollerPresence.Next(&packet))
     {
       break;
     }
     std_msgs::Bool presence;
     presence.data = packet.Get<bool>();
-    presencePublisher.publish(presence);
+
+    presencePublisher.publish(presence);*/
+    auto end_presence = std::chrono::system_clock::now();
 
     //Release camera frames
     kinect.releaseMemory();
+    auto end_total = std::chrono::system_clock::now();
+    std::chrono::duration<double> elapsed_seconds_kinect = end_kinect - start_kinect;
+    std::chrono::duration<double> elapsed_seconds_graph = end_graph - start_graph;
+    std::chrono::duration<double> elapsed_seconds_landmark = end_landmark - start_landmark;
+    std::chrono::duration<double> elapsed_seconds_landmark_transformation = end_landmark - start_landmark_transformation;
+    std::chrono::duration<double> elapsed_seconds_presence = end_presence - start_presence;
+    std::chrono::duration<double> elapsed_seconds_image = end_image - start_image;
+    std::chrono::duration<double> elapsed_seconds_total = end_total - start_kinect;
+    std::cout << "total in fps: " << 1 / elapsed_seconds_total.count()
+              << "\t kinect: " << elapsed_seconds_kinect.count() / elapsed_seconds_total.count() << "% "
+              << "\t graph: " << elapsed_seconds_graph.count() / elapsed_seconds_total.count() << "% "
+              << "\t landmarks: " << elapsed_seconds_landmark.count() / elapsed_seconds_total.count() << "% "
+              << "\t landmarks transformation: " << elapsed_seconds_landmark_transformation.count() / elapsed_seconds_total.count() << "% " << std::endl;
   }
 
   LOG(INFO) << "Shutting down.";

@@ -24,7 +24,7 @@ kinectCamera::kinectCamera()
     config = K4A_DEVICE_CONFIG_INIT_DISABLE_ALL;
     config.color_resolution = K4A_COLOR_RESOLUTION_720P;
     config.color_format = K4A_IMAGE_FORMAT_COLOR_MJPG;
-    config.depth_mode = K4A_DEPTH_MODE_WFOV_UNBINNED;
+    config.depth_mode = K4A_DEPTH_MODE_WFOV_2X2BINNED;
     config.camera_fps = K4A_FRAMES_PER_SECOND_15;
     config.synchronized_images_only = true;
 
@@ -57,7 +57,7 @@ bool kinectCamera::captureFrame()
 
 cv::Mat kinectCamera::convertPerspectiveDepthToColor()
 {
-    int color_image_width_pixels = k4a_image_get_width_pixels(color_image);
+    /*int color_image_width_pixels = k4a_image_get_width_pixels(color_image);
     int color_image_height_pixels = k4a_image_get_height_pixels(color_image);
     if (K4A_RESULT_SUCCEEDED != k4a_image_create(K4A_IMAGE_FORMAT_DEPTH16,
                                                  color_image_width_pixels,
@@ -78,7 +78,8 @@ cv::Mat kinectCamera::convertPerspectiveDepthToColor()
     auto width = k4a_image_get_width_pixels(transformed_depth_image);
     auto buffer = k4a_image_get_buffer(transformed_depth_image);
     transformed_depth_mat = cv::Mat(height, width, CV_16UC1, (void *)buffer, cv::Mat::AUTO_STEP);
-    return transformed_depth_mat;
+    return transformed_depth_mat;*/
+    return cv::Mat();
 }
 
 void kinectCamera::shutdown()
@@ -130,13 +131,13 @@ void kinectCamera::releaseMemory()
 {
     k4a_image_release(color_image);
     k4a_image_release(depth_image);
-    k4a_image_release(transformed_depth_image);
     k4a_capture_release(capture);
 }
 
 cv::Point3f kinectCamera::convertTo3D(cv::Point2f point2D)
 {
     k4a_float2_t color2D;
+    k4a_float2_t depth2D;
     k4a_float3_t color3D;
     cv::Point3f point3D = cv::Point3f(0, 0, 0);
 
@@ -147,11 +148,20 @@ cv::Point3f kinectCamera::convertTo3D(cv::Point2f point2D)
     if (depth_image == NULL)
     {
         getDepthImage();
-        convertPerspectiveDepthToColor();
     }
 
+    uint16_t depth = 0;
+
     //Get Depth Value at position
-    auto depth = transformed_depth_mat.at<ushort>(color2D.xy.y, color2D.xy.x);
+    k4a_calibration_color_2d_to_depth_2d(&calibration, &color2D, depth_image, &depth2D, &valid);
+    if (valid)
+    {
+        uint16_t *buffer = (uint16_t *)(void *)k4a_image_get_buffer(depth_image);
+        auto height = k4a_image_get_height_pixels(depth_image);
+        auto width = k4a_image_get_width_pixels(depth_image);
+        cv::Mat mat = cv::Mat(height, width, CV_16U, (void *)buffer, cv::Mat::AUTO_STEP);
+        depth = mat.at<ushort>(depth2D.xy.y, depth2D.xy.x);
+    }
 
     //Get 3D point in color camera coordinates. Input pixel from color camera. Assigns previous assigned depth.
     k4a_calibration_2d_to_3d(&calibration, &color2D, depth, K4A_CALIBRATION_TYPE_COLOR, K4A_CALIBRATION_TYPE_COLOR, &color3D, &valid);
