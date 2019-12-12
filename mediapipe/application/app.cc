@@ -86,7 +86,7 @@ int checkPositive(int value)
   LOG(INFO) << "Initialize the ros node.";
   ros::NodeHandle node;
   //ros::Publisher presencePublisher = node.advertise<std_msgs::Bool>("/hand_tracking/presence", 1000);
-  ros::Publisher landmarksPublisher = node.advertise<std_msgs::Float32MultiArray>("/hand_tracking/landmarks", 1000);
+  ros::Publisher landmarksPublisher = node.advertise<std_msgs::Float32MultiArray>("/hand_tracking/landmarks", 1);
 
   LOG(INFO) << "Start running the calculator graph.";
   //ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerPresence, graph.AddOutputStreamPoller(presenceOutputStream));
