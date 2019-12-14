@@ -24,8 +24,8 @@ kinectCamera::kinectCamera()
     config = K4A_DEVICE_CONFIG_INIT_DISABLE_ALL;
     config.color_resolution = K4A_COLOR_RESOLUTION_720P;
     config.color_format = K4A_IMAGE_FORMAT_COLOR_MJPG;
-    config.depth_mode = K4A_DEPTH_MODE_WFOV_2X2BINNED;
-    config.camera_fps = K4A_FRAMES_PER_SECOND_15;
+    config.depth_mode = K4A_DEPTH_MODE_WFOV_UNBINNED;
+    config.camera_fps = K4A_FRAMES_PER_SECOND_5;
     config.synchronized_images_only = true;
 
     // Start the camera with the given configuration
@@ -53,33 +53,6 @@ bool kinectCamera::captureFrame()
         return false;
     }
     return false;
-}
-
-cv::Mat kinectCamera::convertPerspectiveDepthToColor()
-{
-    /*int color_image_width_pixels = k4a_image_get_width_pixels(color_image);
-    int color_image_height_pixels = k4a_image_get_height_pixels(color_image);
-    if (K4A_RESULT_SUCCEEDED != k4a_image_create(K4A_IMAGE_FORMAT_DEPTH16,
-                                                 color_image_width_pixels,
-                                                 color_image_height_pixels,
-                                                 color_image_width_pixels * (int)sizeof(uint16_t),
-                                                 &transformed_depth_image))
-    {
-        printf("Failed to create transformed depth image\n");
-    }
-
-    auto result = k4a_transformation_depth_image_to_color_camera(k4a_transformation_create(&calibration), depth_image, transformed_depth_image);
-    if (K4A_RESULT_SUCCEEDED != result)
-    {
-        printf("unsucessfull\n");
-    }
-
-    auto height = k4a_image_get_height_pixels(transformed_depth_image);
-    auto width = k4a_image_get_width_pixels(transformed_depth_image);
-    auto buffer = k4a_image_get_buffer(transformed_depth_image);
-    transformed_depth_mat = cv::Mat(height, width, CV_16UC1, (void *)buffer, cv::Mat::AUTO_STEP);
-    return transformed_depth_mat;*/
-    return cv::Mat();
 }
 
 void kinectCamera::shutdown()

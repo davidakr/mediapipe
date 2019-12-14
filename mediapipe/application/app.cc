@@ -19,7 +19,9 @@
 #include <ros/ros.h>
 #include <std_msgs/Bool.h>
 #include <std_msgs/Float32MultiArray.h>
+#include <std_msgs/Float64MultiArray.h>
 #include <std_msgs/MultiArrayDimension.h>
+#include <franka_msgs/FrankaState.h>
 
 constexpr char kInputStream[] = "input_video";
 constexpr char videoOutputStream[] = "output_video";
@@ -33,6 +35,10 @@ const int positionsLandmarks = 3;
 
 const int width = 1280;
 const int height = 720;
+
+double x;
+double y;
+double z;
 
 DEFINE_string(
     calculator_graph_config_file, "",
@@ -57,6 +63,14 @@ int checkPositive(int value)
   if (value < 0)
     return 0;
   return value;
+}
+
+void stateCallback(const franka_msgs::FrankaState &state_sub)
+{
+  auto pose = state_sub.O_T_EE.data();
+  x = pose[12];
+  y = pose[13];
+  z = pose[14];
 }
 
 ::mediapipe::Status RunMPPGraph()
@@ -86,7 +100,9 @@ int checkPositive(int value)
   LOG(INFO) << "Initialize the ros node.";
   ros::NodeHandle node;
   //ros::Publisher presencePublisher = node.advertise<std_msgs::Bool>("/hand_tracking/presence", 1000);
-  ros::Publisher landmarksPublisher = node.advertise<std_msgs::Float32MultiArray>("/hand_tracking/landmarks", 1);
+  //ros::Publisher landmarksPublisher = node.advertise<std_msgs::Float32MultiArray>("/hand_tracking/landmarks", 1);
+  ros::Subscriber state_sub = node.subscribe("/franka_state_controller/franka_states", 10, stateCallback);
+  ros::Publisher pose_pub = node.advertise<std_msgs::Float64MultiArray>("/cartesian_position_velocity_controller/command_cartesian_position", 10);
 
   LOG(INFO) << "Start running the calculator graph.";
   //ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerPresence, graph.AddOutputStreamPoller(presenceOutputStream));
@@ -106,6 +122,9 @@ int checkPositive(int value)
     kinect.captureFrame();
     camera_frame_raw = kinect.getColorImage();
     kinect.getDepthImage();
+    double x_current = x;
+    double y_current = y;
+    double z_current = z;
     auto end_kinect = std::chrono::system_clock::now();
 
     if (camera_frame_raw.empty())
@@ -222,7 +241,7 @@ int checkPositive(int value)
     }
 
     landmarks.data = vec;
-    landmarksPublisher.publish(landmarks);
+    //landmarksPublisher.publish(landmarks);
     auto end_landmark = std::chrono::system_clock::now();
 
     auto start_presence = std::chrono::system_clock::now();
@@ -240,7 +259,7 @@ int checkPositive(int value)
     //Release camera frames
     kinect.releaseMemory();
     auto end_total = std::chrono::system_clock::now();
-    std::chrono::duration<double> elapsed_seconds_kinect = end_kinect - start_kinect;
+    /*std::chrono::duration<double> elapsed_seconds_kinect = end_kinect - start_kinect;
     std::chrono::duration<double> elapsed_seconds_graph = end_graph - start_graph;
     std::chrono::duration<double> elapsed_seconds_landmark = end_landmark - start_landmark;
     std::chrono::duration<double> elapsed_seconds_landmark_transformation = end_landmark - start_landmark_transformation;
@@ -251,7 +270,70 @@ int checkPositive(int value)
               << "\t kinect: " << elapsed_seconds_kinect.count() / elapsed_seconds_total.count() << "% "
               << "\t graph: " << elapsed_seconds_graph.count() / elapsed_seconds_total.count() << "% "
               << "\t landmarks: " << elapsed_seconds_landmark.count() / elapsed_seconds_total.count() << "% "
-              << "\t landmarks transformation: " << elapsed_seconds_landmark_transformation.count() / elapsed_seconds_total.count() << "% " << std::endl;
+              << "\t landmarks transformation: " << elapsed_seconds_landmark_transformation.count() / elapsed_seconds_total.count() << "% " << std::endl;*/
+
+    float avgX = 0;
+    float avgY = 0;
+    float avgZ = 0;
+    int amountLandmarks = 0;
+    double xToSend = x_current;
+    double yToSend = y_current;
+    double zToSend = z_current;
+
+    if (vec.size() > 0)
+    {
+      for (int i = 0; i < 1; i++)
+      {
+        if ((vec[i + 2] != 0) && (vec[i + 2] < 500))
+        {
+          if (vec[i + 2] < 500)
+          {
+            avgX = avgX + vec[i];
+            avgY = avgY + vec[i + 1];
+            avgZ = avgZ + vec[i + 2];
+
+            amountLandmarks++;
+          }
+        }
+      }
+      avgX = avgX / amountLandmarks;
+      avgY = avgY / amountLandmarks;
+      avgZ = avgZ / amountLandmarks;
+      // Conversion camera coordinates in robot coordinates
+      xToSend = x_current - 0.1 - avgY/1000;
+      yToSend = y_current - avgX / 1000;
+      zToSend = z_current + 0.3 - avgZ / 1000; //meter
+      if (isnan(xToSend))
+      {
+        xToSend = x_current;
+      }
+      if (isnan(yToSend))
+      {
+        yToSend = y_current;
+      }
+      if (isnan(zToSend))
+      {
+        zToSend = z_current;
+      }
+      std::cout << "avgx " << avgX << " current y " << y_current << " yToSend " << yToSend << " amoutLandmarks " << amountLandmarks << " first point " << vec[0] << std::endl;
+    }
+
+    std_msgs::Float64MultiArray msg;
+    msg.layout.dim.push_back(std_msgs::MultiArrayDimension());
+    msg.layout.dim[0].label = "position";
+    msg.layout.dim[0].size = 3;
+
+    std::vector<_Float64> vecSend;
+
+    vecSend.push_back(xToSend);
+    vecSend.push_back(yToSend);
+    vecSend.push_back(zToSend);
+
+    msg.data = vecSend;
+
+    pose_pub.publish(msg);
+
+    ros::spinOnce();
   }
 
   LOG(INFO) << "Shutting down.";

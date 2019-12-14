@@ -24,7 +24,6 @@ public:
     bool captureFrame();
     void releaseMemory();
     void shutdown();
-    cv::Mat convertPerspectiveDepthToColor();
     cv::Mat getColorImage();
     cv::Mat getDepthImage();
     cv::Point3f convertTo3D(cv::Point2f point);

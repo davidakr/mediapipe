@@ -36,3 +36,11 @@ cc_library(
     hdrs = ["kinectCamera.h"],
 )
 
+cc_binary(
+    name = "publisher",
+    srcs = ["publisher.cc"],
+    deps = [
+        "@ros",
+    ],
+)
+
