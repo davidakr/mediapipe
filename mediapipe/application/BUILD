@@ -23,9 +23,10 @@ cc_library(
         "//mediapipe/gpu:gl_calculator_helper",
         "//mediapipe/gpu:gpu_buffer",
         "//mediapipe/gpu:gpu_shared_data_internal",
+        "//mediapipe/calculators/core:concatenate_vector_calculator",
         "//third_party:kinect",
         ":kinectCamera",
-        "//mediapipe/calculators/core:concatenate_vector_calculator",
+        ":frankaEmika",
         "@ros",
     ],
 )
@@ -34,6 +35,15 @@ cc_library(
     name = "kinectCamera",
     srcs = ["kinectCamera.cpp"],
     hdrs = ["kinectCamera.h"],
+)
+
+cc_library(
+    name = "frankaEmika",
+    srcs = ["frankaEmika.cpp"],
+    hdrs = ["frankaEmika.h"],
+    deps = [
+        "@ros",
+    ],
 )
 
 cc_binary(

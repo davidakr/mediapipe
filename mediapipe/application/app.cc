@@ -15,13 +15,7 @@
 #include "mediapipe/calculators/core/concatenate_vector_calculator.h"
 
 #include "kinectCamera.h"
-
-#include <ros/ros.h>
-#include <std_msgs/Bool.h>
-#include <std_msgs/Float32MultiArray.h>
-#include <std_msgs/Float64MultiArray.h>
-#include <std_msgs/MultiArrayDimension.h>
-#include <franka_msgs/FrankaState.h>
+#include "frankaEmika.h"
 
 constexpr char kInputStream[] = "input_video";
 constexpr char videoOutputStream[] = "output_video";
@@ -97,16 +91,12 @@ void stateCallback(const franka_msgs::FrankaState &state_sub)
   LOG(INFO) << "Initialize the kinect.";
   kinectCamera kinect = kinectCamera();
 
-  LOG(INFO) << "Initialize the ros node.";
-  ros::NodeHandle node;
-  //ros::Publisher presencePublisher = node.advertise<std_msgs::Bool>("/hand_tracking/presence", 1000);
-  //ros::Publisher landmarksPublisher = node.advertise<std_msgs::Float32MultiArray>("/hand_tracking/landmarks", 1);
-  ros::Subscriber state_sub = node.subscribe("/franka_state_controller/franka_states", 10, stateCallback);
-  ros::Publisher pose_pub = node.advertise<std_msgs::Float64MultiArray>("/cartesian_position_velocity_controller/command_cartesian_position", 10);
+  LOG(INFO) << "Initialize franka.";
+  frankaEmika franka = frankaEmika();
 
   LOG(INFO) << "Start running the calculator graph.";
   //ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerPresence, graph.AddOutputStreamPoller(presenceOutputStream));
-  //ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerVideo, graph.AddOutputStreamPoller(videoOutputStream));
+  ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerVideo, graph.AddOutputStreamPoller(videoOutputStream));
   ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller pollerLandmark, graph.AddOutputStreamPoller(landmarkOutputStream));
 
   MP_RETURN_IF_ERROR(graph.StartRun({}));
@@ -122,15 +112,16 @@ void stateCallback(const franka_msgs::FrankaState &state_sub)
     kinect.captureFrame();
     camera_frame_raw = kinect.getColorImage();
     kinect.getDepthImage();
-    double x_current = x;
-    double y_current = y;
-    double z_current = z;
+
+    // Capture current Position
+    franka.setCurrentPosition();
+
     auto end_kinect = std::chrono::system_clock::now();
 
     if (camera_frame_raw.empty())
     {
       LOG(INFO) << "End of video";
-      break; // End of video.
+      break;
     }
     cv::Mat camera_frame;
     cv::cvtColor(camera_frame_raw, camera_frame, cv::COLOR_BGR2RGB);
@@ -167,7 +158,7 @@ void stateCallback(const franka_msgs::FrankaState &state_sub)
 
     auto start_image = std::chrono::system_clock::now();
 
-    /*if (!pollerVideo.Next(&packet))
+    if (!pollerVideo.Next(&packet))
       break;
     std::unique_ptr<mediapipe::ImageFrame> output_frame;
 
@@ -192,11 +183,11 @@ void stateCallback(const franka_msgs::FrankaState &state_sub)
 
     // Convert back to opencv for display or saving.
     cv::Mat output_frame_mat = mediapipe::formats::MatView(output_frame.get());
-    cv::cvtColor(output_frame_mat, output_frame_mat, cv::COLOR_RGB2BGR);*/
+    cv::cvtColor(output_frame_mat, output_frame_mat, cv::COLOR_RGB2BGR);
 
     auto end_image = std::chrono::system_clock::now();
 
-    //showImage(output_frame_mat, "color");
+    showImage(output_frame_mat, "color");
 
     auto start_landmark = std::chrono::system_clock::now();
     // Process landmarks
@@ -208,18 +199,7 @@ void stateCallback(const franka_msgs::FrankaState &state_sub)
 
     auto start_landmark_transformation = std::chrono::system_clock::now();
 
-    std_msgs::Float32MultiArray landmarks;
-    landmarks.layout.dim.push_back(std_msgs::MultiArrayDimension());
-    landmarks.layout.dim.push_back(std_msgs::MultiArrayDimension());
-    landmarks.layout.data_offset = 0;
-    landmarks.layout.dim[0].label = "landmark";
-    landmarks.layout.dim[0].size = amoutOfLandmarks;
-    landmarks.layout.dim[0].stride = amoutOfLandmarks * positionsLandmarks;
-    landmarks.layout.dim[1].label = "position";
-    landmarks.layout.dim[1].size = positionsLandmarks;
-    landmarks.layout.dim[1].size = positionsLandmarks;
-
-    // Convert landmarks
+    // Convert landmarks to vector
     std::vector<float> vec;
 
     for (auto i = landmark_frame.begin(); i != landmark_frame.end(); ++i)
@@ -240,8 +220,6 @@ void stateCallback(const franka_msgs::FrankaState &state_sub)
       }
     }
 
-    landmarks.data = vec;
-    //landmarksPublisher.publish(landmarks);
     auto end_landmark = std::chrono::system_clock::now();
 
     auto start_presence = std::chrono::system_clock::now();
@@ -272,6 +250,10 @@ void stateCallback(const franka_msgs::FrankaState &state_sub)
               << "\t landmarks: " << elapsed_seconds_landmark.count() / elapsed_seconds_total.count() << "% "
               << "\t landmarks transformation: " << elapsed_seconds_landmark_transformation.count() / elapsed_seconds_total.count() << "% " << std::endl;*/
 
+    auto current = franka.getCurrentPosition();
+    double x_current = current[0];
+    double y_current = current[1];
+    double z_current = current[2];
     float avgX = 0;
     float avgY = 0;
     float avgZ = 0;
@@ -282,18 +264,15 @@ void stateCallback(const franka_msgs::FrankaState &state_sub)
 
     if (vec.size() > 0)
     {
-      for (int i = 0; i < 1; i++)
+      for (int i = 0; i < 1; i++) //aktuell nur ein Punkt
       {
-        if ((vec[i + 2] != 0) && (vec[i + 2] < 500))
+        if ((vec[i + 2] != 0) && (vec[i + 2] < 800))
         {
-          if (vec[i + 2] < 500)
-          {
             avgX = avgX + vec[i];
             avgY = avgY + vec[i + 1];
             avgZ = avgZ + vec[i + 2];
-
             amountLandmarks++;
-          }
+          
         }
       }
       avgX = avgX / amountLandmarks;
@@ -303,35 +282,11 @@ void stateCallback(const franka_msgs::FrankaState &state_sub)
       xToSend = x_current - 0.1 - avgY/1000;
       yToSend = y_current - avgX / 1000;
       zToSend = z_current + 0.3 - avgZ / 1000; //meter
-      if (isnan(xToSend))
-      {
-        xToSend = x_current;
-      }
-      if (isnan(yToSend))
-      {
-        yToSend = y_current;
-      }
-      if (isnan(zToSend))
-      {
-        zToSend = z_current;
-      }
-      std::cout << "avgx " << avgX << " current y " << y_current << " yToSend " << yToSend << " amoutLandmarks " << amountLandmarks << " first point " << vec[0] << std::endl;
+      //std::cout << "avgz " << avgZ/1000 << " current z " << z_current << " zToSend " << zToSend << " amoutLandmarks " << amountLandmarks << " first point " << vec[2] << std::endl;
     }
 
-    std_msgs::Float64MultiArray msg;
-    msg.layout.dim.push_back(std_msgs::MultiArrayDimension());
-    msg.layout.dim[0].label = "position";
-    msg.layout.dim[0].size = 3;
-
-    std::vector<_Float64> vecSend;
-
-    vecSend.push_back(xToSend);
-    vecSend.push_back(yToSend);
-    vecSend.push_back(zToSend);
-
-    msg.data = vecSend;
-
-    pose_pub.publish(msg);
+    double cartesianPosition[3] = {xToSend, yToSend, zToSend};
+    franka.goToPosition(cartesianPosition);
 
     ros::spinOnce();
   }
