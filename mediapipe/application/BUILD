@@ -51,6 +51,8 @@ cc_binary(
     srcs = ["publisher.cc"],
     deps = [
         "@ros",
+        "handTracker",
+        "//mediapipe/graphs/hand_tracking:mobile_calculators",
     ],
 )
 
@@ -72,7 +74,14 @@ cc_library(
         "//mediapipe/gpu:gl_calculator_helper",
         "//mediapipe/gpu:gpu_buffer",
         "//mediapipe/gpu:gpu_shared_data_internal",
-        "//mediapipe/calculators/core:concatenate_vector_calculator",  
+        "//mediapipe/calculators/core:concatenate_vector_calculator",
     ],
 )
 
+cc_binary(
+    name = "integration",
+    deps = [
+        "//mediapipe/application:publisher",
+        "//mediapipe/graphs/hand_tracking:mobile_calculators",
+    ],
+)

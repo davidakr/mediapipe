@@ -3,6 +3,7 @@
 #include "std_msgs/Float64MultiArray.h"
 #include "std_msgs/String.h"
 #include "franka_msgs/FrankaState.h"
+#include "handTracker.h"
 
 #include <sstream>
 
@@ -21,8 +22,20 @@ void stateCallback(const franka_msgs::FrankaState &state_sub)
 
 int main(int argc, char **argv)
 {
+  cv::VideoCapture camera(0);
+  cv::Mat frame;
 
-  ros::init(argc, argv, "publisher_pose");
+  cv::namedWindow("Webcam", CV_WINDOW_AUTOSIZE);
+  handTracker tracker = handTracker();
+  while (true)
+  {
+    camera >> frame;
+    tracker.processImage(frame);
+    cv::Mat mat = tracker.getImage();
+    cv::imshow("Webcam", mat);
+    cv::waitKey(10);
+  }
+  /*ros::init(argc, argv, "publisher_pose");
   ros::NodeHandle n;
   ros::Publisher pose_pub = n.advertise<std_msgs::Float64MultiArray>("/cartesian_position_velocity_controller/command_cartesian_position", 10);
   ros::Subscriber state_sub = n.subscribe("/franka_state_controller/franka_states", 10, stateCallback);
@@ -52,7 +65,7 @@ int main(int argc, char **argv)
 
     loop_rate.sleep();
     ++count;
-  }
+  }*/
 
   return 0;
 }

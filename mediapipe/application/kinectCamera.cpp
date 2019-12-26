@@ -1,10 +1,4 @@
 #include "kinectCamera.h"
-#include "k4a/k4a.h"
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <chrono>
-#include <thread>
 
 kinectCamera::kinectCamera()
 {

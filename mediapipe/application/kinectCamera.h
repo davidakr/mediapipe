@@ -4,6 +4,11 @@
 #include "k4a/k4a.h"
 #include "opencv2/opencv.hpp"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <chrono>
+#include <thread>
+
 class kinectCamera
 {
 private:

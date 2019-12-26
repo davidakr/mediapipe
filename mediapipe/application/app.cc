@@ -17,10 +17,6 @@
 #include "kinectCamera.h"
 #include "frankaEmika.h"
 
-constexpr char kInputStream[] = "input_video";
-constexpr char videoOutputStream[] = "output_video";
-constexpr char landmarkOutputStream[] = "hand_landmarks";
-constexpr char presenceOutputStream[] = "hand_presence";
 
 constexpr char kWindowName[] = "MediaPipe";
 
@@ -34,15 +30,7 @@ double x;
 double y;
 double z;
 
-DEFINE_string(
-    calculator_graph_config_file, "",
-    "Name of file containing text format CalculatorGraphConfig proto.");
-DEFINE_string(input_video_path, "",
-              "Full path of video to load. "
-              "If not provided, attempt to use a webcam.");
-DEFINE_string(output_video_path, "",
-              "Full path of where to save result (.mp4 only). "
-              "If not provided, show result in a window.");
+
 
 void showImage(cv::Mat mat, std::string name)
 {
@@ -77,6 +65,8 @@ void stateCallback(const franka_msgs::FrankaState &state_sub)
   mediapipe::CalculatorGraphConfig config =
       mediapipe::ParseTextProtoOrDie<mediapipe::CalculatorGraphConfig>(
           calculator_graph_config_contents);
+
+          std::cout << FLAGS_calculator_graph_config_file <<std::endl;
 
   LOG(INFO) << "Initialize the calculator graph.";
   mediapipe::CalculatorGraph graph;
