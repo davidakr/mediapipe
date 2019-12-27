@@ -27,6 +27,7 @@ cc_library(
         "//third_party:kinect",
         ":kinectCamera",
         ":frankaEmika",
+        ":handTracker",
         "@ros",
     ],
 )

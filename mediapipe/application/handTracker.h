@@ -26,7 +26,7 @@ class handTracker
 private:
     cv::Mat output_mat;
     bool presence;
-    std::vector<float> landmarks;
+    std::vector<cv::Point2f> landmarks;
     const int width = 1280;
     const int height = 720;
     char kInputStream[12] = "input_video";
@@ -45,7 +45,7 @@ private:
 public:
     handTracker();
     void processImage(cv::Mat camera_frame);
-    std::vector<float> getLandmarks();
+    std::vector<cv::Point2f> getLandmarks();
     bool getPresence();
     cv::Mat getImage();
 };

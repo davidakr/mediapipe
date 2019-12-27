@@ -28,7 +28,7 @@ void handTracker::processImage(cv::Mat camera_frame)
     return;
 }
 
-std::vector<float> handTracker::getLandmarks()
+std::vector<cv::Point2f> handTracker::getLandmarks()
 {
     waitForProcessFinished();
     return landmarks;
@@ -78,8 +78,8 @@ cv::Mat handTracker::getImage()
     while (grab_frames)
     {
         mtx.lock();
-        bool processImage = newData;
-        if (processImage)
+        bool processSingleImage = newData;
+        if (processSingleImage)
         {
             camera_frame_raw = this->camera_frame_raw;
             newData = false;
@@ -87,7 +87,7 @@ cv::Mat handTracker::getImage()
         }
         mtx.unlock();
 
-        while (processImage)
+        while (processSingleImage)
         {
             // Capture opencv camera or video frame.
 
@@ -160,15 +160,17 @@ cv::Mat handTracker::getImage()
             auto landmark_frame = packet.Get<std::vector<mediapipe::NormalizedLandmark, std::allocator<mediapipe::NormalizedLandmark>>>();
 
             // Convert landmarks to vector
-            std::vector<float> vec;
+            std::vector<cv::Point2f> vec;
 
             for (auto i = landmark_frame.begin(); i != landmark_frame.end(); ++i)
             {
                 mediapipe::NormalizedLandmark landmark = *i;
                 float pixelWidth = width * landmark.x();
                 float pixelHeigth = height * landmark.y();
-                vec.push_back(pixelWidth);
-                vec.push_back(pixelHeigth);
+                cv::Point2f point2D;
+                point2D.x = pixelWidth;
+                point2D.y = pixelHeigth;
+                vec.push_back(point2D);
             }
 
             //Process Hand Presence
@@ -183,7 +185,7 @@ cv::Mat handTracker::getImage()
             output_mat = output_frame_mat;
             this->presence = presence;
             processing = false;
-            processImage = false;
+            processSingleImage = false;
             mtx.unlock();
         }
     }
