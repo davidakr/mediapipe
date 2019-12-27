@@ -59,6 +59,16 @@ int main(int argc, char **argv)
 
     std::vector<cv::Point3f> landmarks3D; 
     std::vector<cv::Point2f> landmarks2D = tracker.getLandmarks();
+
+    for (auto i = landmarks2D.begin(); i != landmarks2D.end(); ++i)
+    {
+      cv::Point2f point2D = *i;
+       if (point2D.x != 0 && point2D.y != 0)
+      {
+        landmarks3D.push_back(kinect.convertTo3D(point2D));
+      }
+    }
+    
     auto current = franka.getCurrentPosition();
     double x_current = current[0];
     double y_current = current[1];

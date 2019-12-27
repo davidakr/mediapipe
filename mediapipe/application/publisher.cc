@@ -11,14 +11,14 @@ double x;
 double y;
 double z;
 
-void stateCallback(const franka_msgs::FrankaState &state_sub)
+/*void stateCallback(const franka_msgs::FrankaState &state_sub)
 {
   auto pose = state_sub.O_T_EE.data();
   x = pose[12];
   y = pose[13];
   z = pose[14];
   std::cout << "state update" << std::endl;
-}
+}*/
 
 int main(int argc, char **argv)
 {

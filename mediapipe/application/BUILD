@@ -52,8 +52,7 @@ cc_binary(
     srcs = ["publisher.cc"],
     deps = [
         "@ros",
-        "handTracker",
-        "//mediapipe/graphs/hand_tracking:mobile_calculators",
+        ":handTracker",
     ],
 )
 
